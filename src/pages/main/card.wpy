@@ -1,0 +1,112 @@
+<template>
+    <view class="page" wx:if="{{!loading}}">
+        <card />
+    </view>
+</template>
+<script>
+    import wepy from "wepy";
+    import card from "yunmi-card";
+    import api from "../../common/api";
+    export default class Card extends wepy.page {
+        config = {
+            navigationBarTitleText: '企业名片',
+            enablePullDownRefresh: true
+        };
+        components = {
+            card: card
+        };
+        data = {
+            loading: true,
+            card_info: {}
+        };
+        events = {
+            getCardInfo() {
+                api.request({
+                    url: api.get_enterprise_card,
+                    data: {
+                        act: 1,
+                        shop_id: api.shop_id
+                    }
+                }).then(json => {
+                    this.card_info = json;
+                    this.$broadcast("renderCardInfo", json);
+                    this.loading = false;
+                    this.$apply();
+                }).catch(res => {
+                    this.$broadcast("renderCardNoData");
+                    this.loading = false;
+                    this.$apply();
+                });;
+            }
+        };
+        async onPullDownRefresh() {
+            this.card_info = {};
+            this.$apply();
+            api.getBackgroundColor().then(json => {
+                api.setBackgroundColor(json.frontColor, json.backgroundColor);
+                this.$broadcast("updateBackground", {
+                    backgroundColor: json.backgroundColor,
+                    backgroundColorRgba: api.hexToRgba(json.backgroundColor, 75).rgba
+                });
+            });
+            await api.checkLogin().then(json => {
+                this.$invoke("card", 'getCardInfo');
+            });
+            wx.stopPullDownRefresh();
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                api.setBackgroundColor(json.frontColor, json.backgroundColor);
+                this.$broadcast("updateBackground", {
+                    backgroundColor: json.backgroundColor,
+                    backgroundColorRgba: api.hexToRgba(json.backgroundColor, 75).rgba
+                });
+            });
+            api.checkLogin().then(json => {
+                this.$invoke("card", 'getCardInfo');
+                api.loading.hide();
+            });
+        }
+        onLoad(options) {
+            api.shop_id = options.shop_id || parseInt(api.shop_id);
+        }
+        onShareAppMessage() {
+            let {
+                title
+            } = this.card_info;
+            let uid = api.userInfo.is_agency ? api.userInfo.uid : api.from_uid ? api.from_uid : api.userInfo.uid;
+            console.log(`/pages/main/card?from_uid=${uid}&shop_id=${api.shop_id}`)
+            return {
+                title: `${title}的企业名片`,
+                path: `/pages/main/card?from_uid=${uid}&shop_id=${api.shop_id}`,
+                success: res => {
+                    wx.showToast({
+                        title: "转发成功！"
+                    });
+                },
+                fail: res => {
+                    let msg = "转发失败！";
+                    if (/cancel/gi.test(res.errorMsg) > -1) {
+                        msg = "转发取消！";
+                    }
+                    wx.showToast({
+                        image: "../../images/fail.png",
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>
+<style lang="less">
+    .card-page{
+        .section-item{
+            margin-bottom: 0!important;
+            border-bottom: none;
+            &:last-child{
+                justify-content: flex-start;
+            }
+        }
+    }
+</style>
+

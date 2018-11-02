@@ -1,0 +1,326 @@
+<template>
+    <view class="address-page page">
+        <view class="addr-info page-content">
+            <view class="form-group">
+                <input class='input-txt' placeholder="收货人姓名" value="{{address_info.consignee}}" @blur="nameChange" maxlength="20" />
+            </view>
+            <view class="form-group">
+                <input class='input-txt' type="number" placeholder="手机号码" maxlength="11" value="{{address_info.mobile}}" @blur="mobileChange" />
+            </view>
+            <view class="form-group">
+                <view class="address-picker">
+                    <picker @change="selectProvince" range="{{provinces.list}}" class="picker-item" range-key="name" value="{{provinces.index||0}}">
+                        <view class="picker">{{province.name}}</view>
+                    </picker>
+                    <picker @change="selectCity" range="{{citys.list}}" class="picker-item" range-key="name" value="{{citys.index||0}}">
+                        <view class="picker">{{city.name}}</view>
+                    </picker>
+                    <picker @change="selectDistrict" range="{{districts.list}}" class="picker-item" range-key="name" value="{{districts.index||0}}">
+                        <view class="picker">{{district.name}}</view>
+                    </picker>
+                </view>
+            </view>
+            <view class="form-group textarea-input">
+                <textarea id='wx-addr-detail' class='detail-input' placeholder="详细地址" maxlength="50" value="{{address_info.address}}" @input="detailChange" />
+                <view class="input-tips">{{address_info.address.length||0}}/50</view>
+            </view>
+        </view>
+        <view class="page-footer">
+            <view class="btn confirm-btn flex" @tap="handleEditOk">{{action === 'edit'?'保存修改':'填好了'}}</view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    let province_list = [],
+        city_list = [],
+        district_list = [],
+        province = {},
+        city = {},
+        district = {};
+    const getIndex = (data, filter) => {
+        return data.findIndex(item => {
+            return item.id === filter;
+        });
+    };
+    export default class Detail extends wepy.page {
+        data = {
+            provinces: {},
+            citys: {},
+            districts: {},
+            disabled: false,
+            province: {
+                id: '',
+                name: '省份'
+            },
+            city: {
+                id: '',
+                name: '城市'
+            },
+            district: {
+                id: '',
+                name: '区县'
+            },
+            address_info: {},
+            action: ''
+        };
+        showToast(content) {
+            wx.showToast({
+                image: '../../images/fail.png',
+                title: content
+            });
+        }
+        validate() {
+            let {
+                consignee,
+                mobile,
+                address
+            } = this.address_info,
+                reg = /^1\d{10}$/;
+            if (!consignee) {
+                return this.showToast('姓名不能为空');
+            }
+            if (!mobile) {
+                return this.showToast('手机号不能为空');
+            } else {
+                if (!reg.test(mobile)) {
+                    return this.showToast('手机号格式错误');
+                }
+            }
+            if (!this.province.id || !this.city.id || !address) {
+                return this.showToast('请完善地址');
+            } else if (address.length<5) {
+                return this.showToast('地址需大于5字');
+            }
+            return true;
+        }
+        renderAddressRegions() {
+            let {
+                address_id
+            } = this.address_info,
+                province_index = 0, city_index = 0, district_index = 0;
+            province_list = store.get('regions');
+            if (address_id) {
+                province_index = getIndex(province_list, this.address_info.province);
+                city_list = province_list[province_index].child;
+                city_index = getIndex(city_list, this.address_info.city);
+                district_list = city_list[city_index].child;
+                if (district_list.length) {
+                    district_index = getIndex(district_list, this.address_info.district);
+                    this.district = district_list[district_index];
+                } else {
+                    district_index = 0;
+                    this.district = {
+                        id: '',
+                        name: ' '
+                    };
+                }
+                this.province = province_list[province_index];
+                this.city = city_list[city_index];
+                this.provinces.index = province_index;
+                this.citys.index = city_index;
+                this.districts.index = district_index;
+            } else {
+                city_list = [];
+                district_list = [];
+            }
+            this.provinces.list = province_list.map(item => {
+                return {
+                    id: item.id,
+                    name: item.name
+                }
+            });
+            this.citys.list = city_list.map(item => {
+                return {
+                    id: item.id,
+                    name: item.name
+                }
+            });
+            this.districts.list = district_list.map(item => {
+                return {
+                    id: item.id,
+                    name: item.name
+                }
+            });
+            api.loading.hide();
+            this.$apply();
+        }
+        updateAddress(url, data) {
+            api.request({
+                url: url,
+                data: data,
+                method: 'POST'
+            }).then(json => {
+                api.loading.hide();
+                api.lastPage = "address";
+                store.set('orderDetailAddress', json);
+                api.showModal('操作成功', () => {
+                    wx.navigateBack();
+                });
+                this.disabled = false;
+            }).catch(msg => {
+                api.loading.hide();
+                this.disabled = false;
+                this.showToast(msg);
+            });
+        }
+        //获取地区列表
+        getRegions() {
+            return new Promise((resolve, reject) => {
+                let regions = store.get('regions');
+                if (!regions) {
+                    api.request({
+                        url: api.get_region
+                    }).then(json => {
+                        resolve(json);
+                        store.set('regions', json);
+                    });
+                } else {
+                    resolve(regions);
+                }
+            });
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+        }
+        onLoad(options) {
+            api.loading.show();
+            let id = options.id || '';
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                this.getRegions().then(json => {
+                    if (id) {
+                        api.request({
+                            url: api.get_address_info,
+                            data: {
+                                address_id: id
+                            }
+                        }).then(json => {
+                            this.address_info = json;
+                            this.renderAddressRegions();
+                        });
+                    } else {
+                        this.address_info = {};
+                        this.renderAddressRegions();
+                    }
+                });
+            });
+            this.action = options.type || 'add';
+            let title = this.action == 'add' ? '新增收货地址' : '修改收货地址';
+            wx.setNavigationBarTitle({
+                title: title
+            });
+        }
+        methods = {
+            selectProvince(e) {
+                let {
+                    value
+                } = e.detail;
+                city_list = province_list[value].child;
+                this.provinces.list = province_list.map(item => {
+                    return {
+                        id: item.id,
+                        name: item.name
+                    }
+                });
+                this.citys.list = city_list.map(item => {
+                    return {
+                        id: item.id,
+                        name: item.name
+                    }
+                });
+                this.provinces.index = value;
+                this.citys.index = 0;
+                this.districts.index = 0;
+                this.province = this.provinces.list[value];
+                this.city = {
+                    id: '',
+                    name: '城市'
+                };
+                this.district = {
+                    id: '',
+                    name: '区县'
+                };
+            },
+            selectCity(e) {
+                let {
+                    value
+                } = e.detail;
+                district_list = city_list[value].child;
+                this.citys.list = city_list.map(item => {
+                    return {
+                        id: item.id,
+                        name: item.name
+                    }
+                });
+                this.districts.list = district_list.map(item => {
+                    return {
+                        id: item.id,
+                        name: item.name
+                    }
+                });
+                this.citys.index = value;
+                this.districts.index = 0;
+                this.city = this.citys.list[value];
+                this.district = {
+                    id: '',
+                    name: '区县'
+                };
+            },
+            selectDistrict(e) {
+                let {
+                    value
+                } = e.detail;
+                this.districts.index = value;
+                this.district = this.districts.list[value];
+            },
+            nameChange(e) {
+                this.address_info.consignee = e.detail.value;
+            },
+            mobileChange(e) {
+                this.address_info.mobile = e.detail.value;
+            },
+            detailChange(e) {
+                this.address_info.address = e.detail.value;
+            },
+            handleEditOk(e) {
+                if (this.disabled) return;
+                if (this.validate()) {
+                    api.loading.show();
+                    this.disabled = true;
+                    this.address_info.province = this.province.id;
+                    this.address_info.city = this.city.id;
+                    this.address_info.district = (this.district && this.district.id) || '';
+                    if (this.action === 'add') {
+                        this.updateAddress(api.add_addr_from_woxiu, this.address_info);
+                    } else if (this.action === 'edit') {
+                        this.updateAddress(api.edit_act_addr, this.address_info);
+                    }
+                }
+            }
+        }
+    }
+</script>
+<style lang="less">
+    @import 'address.less';
+    .address-picker {
+        height: 90rpx;
+        line-height: 90rpx;
+        display: -webkit-box;
+        display: flex;
+        justify-content: flex-start;
+        padding: 0 28rpx;
+        .picker-item {
+            padding-right: 60rpx;
+        }
+    }
+</style>

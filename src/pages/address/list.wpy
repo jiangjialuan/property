@@ -1,0 +1,218 @@
+<template>
+    <view class="address-page page">
+        <view class="addr-list page-content">
+            <block wx:for="{{list}}" wx:key="index" wx:for-index="index" wx:for-item="item">
+                <view class="addr-item {{from != 'my'?'select-address':''}}" @tap="handleItemClick({{item.address_id}})">
+                    <view class="addr-detail">
+                        <view class="basic-info flex {{from !='my'&&item.checked?'active':''}}">
+                            <text class="addr-consignee ">{{item.consignee}}</text>
+                            <text class="addr-mobile">{{item.mobile}}</text>
+                            <view class="addr-default" wx:if="{{from !='my'&&item.is_default == 'yes'}}">默认</view>
+                        </view>
+                        <view class="full-address">
+                            {{item.full_address}}
+                        </view>
+                    </view>
+                    <view class="addr-edit-icon" @tap.stop="handleEditBtnClick({{item.address_id}})" wx:if="{{from!='my'}}"></view>
+                    <view class="operate-panel" wx:else>
+                        <view class="addr-default {{item.is_default=='yes'?'active':''}}" @tap="setDefault({{item.address_id}})">{{item.is_default=='yes'?'默认地址':'设为默认'}}</view>
+                        <view style="display: flex;height: 100%;">
+                            <view class="addr-edit" @tap="handleEditBtnClick({{item.address_id}})">编辑</view>
+                            <view class="addr-delete" @tap="handleDelBtnClick({{item.address_id}})">删除</view>
+                        </view>
+                    </view>
+                </view>
+            </block>
+            <view class="no-data" wx:if="{{!loading && !list.length}}" @tap="handleAddItemClick">还没有收货地址，快添加一个吧</view>
+        </view>
+        <view class="add-new-addr" @tap="handleAddItemClick" hidden="{{loading}}">
+            添加新地址
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    let disabled = false;
+    export default class List extends wepy.page {
+        config = {
+            'navigationBarTitleText': '管理收货地址'
+        };
+        data = {
+            from: '',
+            list: [],
+            loading: false
+        };
+        getAddressList() {
+            if (this.loading) return;
+            this.loading = true;
+            this.$apply();
+            let uid = wx.getStorageSync('uid'),
+                sdkInfo = wx.getStorageSync('sdk_zbinfo');
+            let data = {
+                id: uid,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts
+            };
+            api.request({
+                url: api.get_address_list,
+                data: data
+            }).then(json => {
+                api.loading.hide();
+                this.list = json;
+                if (json.length) {
+                    this.setOrderDetailAddress();
+                } else {
+                    store.set('orderDetailAddress', {});
+                }
+                this.loading = false;
+                this.$apply();
+            });
+        }
+        // 设置确认收货页面默认地址
+        setOrderDetailAddress() {
+            if (this.from == 'my') {
+                this.$apply();
+                return;
+            }
+            let orderDetailAddress = store.get('orderDetailAddress');
+            if (!orderDetailAddress) {
+                this.list.map(item => {
+                    item.checked = false;
+                    if (item.is_default === 'yes') {
+                        item.checked = true;
+                        store.set('orderDetailAddress', item);
+                    }
+                });
+            } else {
+                this.list.map(item => {
+                    item.checked = false;
+                    if (item.address_id === orderDetailAddress.address_id) {
+                        item.checked = true;
+                        store.set('orderDetailAddress', item);
+                    }
+                });
+            }
+            this.$apply();
+        }
+        onShow() {
+            api.loading.show();
+            disabled = false;
+            let title = '管理收货地址';
+            if (this.from != 'my') {
+                title = '选择收货地址';
+            }
+            let uid = wx.getStorageSync('uid'),
+                sdkInfo = wx.getStorageSync('sdk_zbinfo');
+            if (!sdkInfo) {
+                api.request({
+                    url: api.get_sdk_zbinfo,
+                    data: {
+                        uid: uid
+                    }
+                }).then(json => {
+                    wx.setStorageSync('sdk_zbinfo', json);
+                    this.getAddressList();
+                });
+            } else {
+                this.getAddressList();
+            }
+            api.getBackgroundColor().then(json => {
+                /*title*/
+                let {
+                    frontColor,
+                    backgroundColor,
+                } = json;
+                console.log(json);
+                api.setBackgroundColor(frontColor, backgroundColor);
+                api.setTitle(title);
+            });
+        }
+        //获取地区列表
+        getRegions() {
+            let regions = store.get('regions');
+            if (!regions) {
+                api.request({
+                    url: api.get_region
+                }).then(json => {
+                    store.set('regions', json);
+                });
+            }
+        }
+        onLoad(options) {
+            this.from = options.from || 'my';
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+            });
+            //获取地区列表
+            this.getRegions();
+        }
+        methods = {
+            handleDelBtnClick(id) {
+                wx.showModal({
+                    content: '确定要删除该地址吗？',
+                    success: (res) => {
+                        if (res.confirm) {
+                            api.request({
+                                url: api.del_addr,
+                                data: {
+                                    address_id: id
+                                },
+                                method: 'POST'
+                            }).then(json => {
+                                this.getAddressList();
+                            });
+                        }
+                    }
+                });
+            },
+            handleItemClick(id) {
+                if (disabled) return;
+                disabled = true;
+                if (this.from == 'my') return;
+                this.list.forEach(item => {
+                    item.checked = false;
+                    if (item.address_id === id) {
+                        item.checked = true;
+                        store.set('orderDetailAddress', item);
+                        api.lastPage = "address";
+                        setTimeout(() => {
+                            wx.navigateBack();
+                        }, 800);
+                    }
+                });
+            },
+            setDefault(id) {
+                this.list.forEach(item => {
+                    if (item.address_id === id) {
+                        item.is_default = 'yes';
+                        api.request({
+                            url: api.edit_act_addr,
+                            data: item,
+                            method: 'POST',
+                        }).then(json => {
+                            this.list.forEach(item => {
+                                item.is_default = 'no';
+                                if (item.address_id === id) {
+                                    item.is_default = 'yes';
+                                }
+                            });
+                            this.$apply();
+                        });
+                    }
+                });
+            },
+            handleEditBtnClick(id) {
+                api.navigateTo(`/pages/address/detail?type=edit&id=${id}&from=${this.from}`);
+            },
+            handleAddItemClick() {
+                api.navigateTo(`/pages/address/detail?type=add&from=${this.from}`);
+            }
+        };
+    }
+</script>
+<style lang="less">
+    @import 'address.less';
+</style>

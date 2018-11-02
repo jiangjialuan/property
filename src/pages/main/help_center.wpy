@@ -1,0 +1,146 @@
+<template>
+    <view class="help-center">
+        <view class="tabs">
+            <block wx:for="{{tabs}}" wx:key="index" wx:for-index="index" wx:for-item="item">
+                <view class="tab-item {{currentTab.id === item.id?'active':''}}" @tap="changeTab('{{item.id}}')">
+                    {{item.title}}
+                </view>
+            </block>
+        </view>
+        <view class="page-content {{status === 'detail'?'no-tabs':''}}">
+            <view class="loading" wx:if="{{loading}}">正在加载中...</view>
+            <import src="../../common/wxParse/wxParse.wxml" />
+            <view class="sub-categories" wx:if="{{status == 'subList' && currentTab.articles.length > 1}}">
+                <block wx:for="{{currentTab.articles}}" wx:key="index" wx:for-index="index" wx:for-item="item">
+                    <view class="category-item" @tap="goToDetail('{{item.id}}','{{item.title}}')">
+                        {{item.title}}
+                    </view>
+                </block>
+            </view>
+            <view class="detail-content" wx:if="{{!loading && status !== 'subList'}}">
+                <template is="wxParse" data="{{wxParseData:detailContent.nodes}}" />
+            </view>
+        </view>
+    </view>
+</template>
+<script>
+import wepy from 'wepy';
+import api from '../../common/api';
+import WxParse from '../../common/wxParse/wxParse';
+export default class helpCenter extends wepy.page {
+    config = {
+        'navigationBarTitleText': '常见问题'
+    };
+    data = {
+        status: 'init',
+        tabs: [],
+        currentTab: null,
+        loading: true
+    };
+
+    methods = {
+        changeTab: (id) => {
+            this.loading = true;
+            this.$apply();
+            let tab = this.tabs.filter(item => {
+                return item.id === id;
+            })[0];
+            if (tab.articles.length === 1) {
+                this.status = 'single';
+                this.currentTab = tab;
+                this.$apply();
+                api.setTitle(tab.title);
+                this.showDetail(tab.articles[0].id);
+            } else if (tab.articles.length > 1) {
+                this.status = 'subList';
+                this.loading = false;
+                this.currentTab = tab;
+                this.$apply();
+            }
+        },
+        goToDetail(id, title) {
+            this.status = 'detail';
+            this.$apply();
+            api.setTitle(title);
+            this.showDetail(id);
+        }
+    }
+
+    showDetail(id) {
+        this.loading = true;
+        this.$apply();
+        api.request({
+            url: `${api.articles}/${id}`
+        }).then(json => {
+            WxParse.wxParse('detailContent', 'html', json.content, this, 5);
+            this.loading = false;
+            this.$apply();
+        });
+    }
+
+    onShow() {
+        api.getBackgroundColor().then(json => {
+            let { frontColor, backgroundColor } = json;
+            api.setBackgroundColor(frontColor, backgroundColor);
+        });
+    }
+
+    onLoad() {
+        api.checkLogin().then(json => {
+            this.userInfo = json;
+            api.request({
+                url: api.categories
+            }).then(res => {
+                this.tabs = res;
+                this.$apply();
+                this.methods.changeTab(this.tabs[0].id);
+            });
+        });
+    }
+
+}
+
+</script>
+<style lang="less">
+.help-center {
+    .tabs {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        z-index: 999;
+    }
+    .page-content {
+        margin-top: 80rpx;
+    }
+    .detail-content {
+        background: #fff;
+        padding: 20rpx;
+    }
+    .sub-categories {
+        background: #fff;
+        .category-item {
+            display: block;
+            padding-left: 24rpx;
+            line-height: 112rpx;
+            color: #666;
+            font-size: 26rpx;
+            border-bottom: 1px solid #ddd;
+            position: relative;
+            &:after {
+                content: '';
+                width: 24rpx;
+                height: 24rpx;
+                vertical-align: middle;
+                border-top: 2rpx solid #666;
+                border-right: 2rpx solid #666;
+                transform: rotate(45deg);
+                position: absolute;
+                right: 30rpx;
+                top: 42rpx;
+            }
+        }
+    }
+}
+
+</style>

@@ -1,0 +1,146 @@
+<template>
+    <view class="card_detail-page">
+        <scroll-view scroll-x class="tab flex">
+            <view class="tab-box" style="{{card_info.enterprise_introduce.length>5?'width:'+card_info.enterprise_introduce.length*150+'rpx':''}}">
+                <view class="tab-item {{tab_index == index?'active':''}}" wx:for="{{card_info.enterprise_introduce}}" wx:key="index" @tap="changeTab('{{index}}')">
+                    {{item.title}}
+                </view>
+            </view>
+        </scroll-view>
+        <view class="detail-info">
+            <import src="../../common/wxParse/wxParse.wxml" />
+            <template is="wxParse" data="{{wxParseData:detailContent.nodes}}" />
+        </view>
+        <image class="go-to-top-btn" src="/images/go_to_top.png" wx:if="{{goToTopBtnShow}}" @tap.stop="pageScrollTo(0)" />
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import api from '../../common/api';
+    import WxParse from '../../common/wxParse/wxParse';
+    export default class Card extends wepy.page {
+        config = {
+            'navigationBarTitleText': '企业名片',
+            'backgroundColor': '#fff'
+        };
+        data = {
+            card_info: {},
+            loading: false,
+            tab_index: -1,
+            windowHeight: 0,
+            goToTopBtnShow: false,
+        };
+        methods = {
+            pageScrollTo(px) {
+                api.pageScrollTo(px)
+            },
+            changeTab(index) {
+                this.changeTab(index);
+            }
+        };
+         getCardInfo() {
+            api.request({
+                url: api.get_enterprise_card,
+                data: {
+                    act: 1,
+                    shop_id: api.shop_id
+                }
+            }).then(json => {
+                this.card_info = json;
+                this.loading = false;
+                this.changeTab(this.tab_index);
+                this.windowHeight = wx.getSystemInfoSync().windowHeight;
+                this.$apply();
+            });
+        }
+        changeTab(index) {
+            this.tab_index = index;
+            let {
+                content
+            } = this.card_info.enterprise_introduce[index];
+            WxParse.wxParse('detailContent', 'html', content, this, 0);
+            this.$apply();
+        }
+        onPageScroll(e) {
+            if (this.windowHeight) {
+                this.goToTopBtnShow = e.scrollTop >= this.windowHeight;
+                this.$apply();
+            }
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+                this.$apply();
+            });
+            api.checkLogin().then(json => {
+                this.userInfo = wx.getStorageSync('userInfo');
+                this.getCardInfo();
+                this.$apply();
+            });
+        }
+        onLoad(options) {
+            this.tab_index = options.index;
+            this.$apply();
+        }
+    }
+</script>
+<style lang="less">
+    @import "../../common/wxParse/wxParse.wxss";
+    .card_detail-page {
+        .tab {
+            height: 90rpx;
+            background: #fff;
+            justify-content: space-around;
+            position: fixed;
+            top: 0;
+            right:0;
+            .tab-box{
+                width:100%;
+                display:flex;
+                flex-direction: row;
+                height:90rpx;
+                justify-content: space-around;
+            }
+            .tab-item {
+                font-size: 28rpx;
+                color: #555;
+                border-bottom: 4rpx solid #fff;
+                line-height: 90rpx;
+                height: 100%;
+                min-width:150rpx;
+                display:inline-block;
+                text-align: center;
+                &.active {
+                    color: #fca200;
+                    border-color: #fca200
+                }
+            }
+        }
+        .detail-info {
+            padding: 10rpx;
+            margin-top: 90rpx;
+            background: #fff;
+            image {
+                width: 100%;
+            }
+            .title {
+                font-size: 30rpx;
+                color: #3d3d3d;
+            }
+            .split {
+                width: 268rpx;
+                height: 4rpx;
+                background: #999;
+                margin: 16rpx auto 32rpx;
+            }
+            .content {
+                font-size: 28rpx;
+                color: #3d3d3d;
+            }
+        }
+    }
+</style>

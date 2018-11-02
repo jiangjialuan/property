@@ -1,0 +1,18 @@
+<template name="member_level_progress">
+    <view class="level-progress flex">
+        <view class="now-score-box">
+            <view class="now-score" style="margin-left:{{member.points/member.next_level_points*100}}%;" wx:if="{{member.next_level_name}}">{{member.points}}</view>
+            <view class="now-score" style="margin-left:50%;" wx:else>{{member.points}}</view>
+        </view>
+        <view class="progress">
+            <view class="fill" style="width:{{member.points/member.next_level_points*100}}%;" wx:if="{{member.next_level_name}}"></view>
+            <view class="fill" style="width:50%;" wx:else></view>
+        </view>
+        <view class="level-progress-info flex">
+            <view>成长值</view>
+            <view class="score">{{member.next_level_points}}</view>
+        </view>
+        <view class="update-tip" wx:if="{{member.next_level_name}}">消费赚积分，还需{{member.next_level_points-member.points}}积分升级{{member.next_level_name}}</view>
+        <view class="update-tip" wx:else>您已升级至最高级别会员</view>
+    </view>
+</template>

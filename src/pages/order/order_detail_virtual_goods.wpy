@@ -1,0 +1,225 @@
+<template>
+    <view class="order-page order-detail-page" wx:if="{{!loading}}">
+        <import src="/templates/order_addr_info.wxml" />
+        <template is="addr-info" data="{{info}}" />
+        <view class="order-item shop-item">
+            <view class="shop-name flex">
+                <image src="../../images/shop-name.png" class="shop-image" />{{info.order_info.buser_name}}
+            </view>
+            <view>
+                <import src="/templates/order_goods_item.wxml" />
+                <template is="goods-item" data="{{item,is_groupon:info.order_info.is_groupon}}" wx:for="{{info.order_info.goods_list}}" wx:key="index" />
+                <view class="count">
+                    共 {{info.order_info.num}} 件商品，
+                    <text>总计：</text>¥{{info.order_info.order_money}}
+                </view>
+            </view>
+        </view>
+        <import src="/templates/order_summary.wxml" />
+        <template is="order_summary" data="{{item:info.order_info}}" />
+        <view class="fixed-footer operate-panel section">
+            <import src="/templates/order_operate_panel.wxml" />
+            <template is="order_operate_panel" data="{{item:info.order_info}}" />
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    import orderService from '../../common/orderService';
+    let startTime = Date.now(),
+        countdownTimeout;
+    export default class Detail extends wepy.page {
+        fixed(restTimestamp, callback1, callback2) {
+            let realTimeLeft = parseInt(Date.now() - startTime, 10),
+                offset = Date.now() - (startTime + realTimeLeft),
+                nextTime = 1000 - offset;
+            if (nextTime < 0) nextTime = 0;
+            if (restTimestamp - realTimeLeft < 1000 * 60 * 10) {
+                nextTime = 100;
+            }
+            countdownTimeout = setTimeout(() => {
+                this.fixed(restTimestamp, callback1, callback2);
+            }, nextTime);
+            if (realTimeLeft >= restTimestamp) {
+                realTimeLeft = 0;
+                callback1 && callback1();
+            } else {
+                callback2 && callback2(restTimestamp - realTimeLeft);
+            }
+        }
+        data = {
+            info: {},
+            order_id: '',
+            loading: true
+        };
+        resetData() {
+            this.info = {};
+            this.loading = true;
+            this.$apply();
+            
+        }
+        methods = {
+            navigateTo(url) {
+                api.navigateTo(url);
+            },
+            copyOrderCode(e) {
+                let {
+                    sn
+                } = e.currentTarget.dataset.item;
+                orderService.copyOrderCode(sn);
+            },
+            payOrder(e) {
+                let {
+                    order_id,
+                    sn,
+                    f_order_id,
+                    is_groupon
+                } = e.currentTarget.dataset.item;
+                orderService.payOrder(order_id, sn, 'order').then(json => {
+                    let url = `/pages/main/pay_success?order_id=${f_order_id}`;
+                    if (is_groupon) {
+                        url = `/pages/groupon/pay_success?order_id=${f_order_id}`;
+                    }
+                    wx.redirectTo({
+                        url: url
+                    });
+                }).catch(msg => {
+                    api.loading.hide();
+                    if (!msg) return;
+                    api.showModal(msg);
+                });
+            },
+            deleteOrder(e) {
+                let {
+                    order_id
+                } = e.currentTarget.dataset.item;
+                orderService.deleteOrder(order_id)
+                    .then(() => {
+                        store.set('orderListRefresh', `${order_id}_delete`);
+                        wx.navigateBack();
+                    });
+            },
+            confirmOrder(e) {
+                let {
+                    order_id,
+                    type
+                } = e.currentTarget.dataset.item;
+                orderService.confirmOrder(order_id, type)
+                    .then(() => {
+                        this.info.order_info.state = '已完成';
+                        this.info.order_info.status = 'completed';
+                        api.setTitle(this.info.order_info.state);
+                        this.$apply();
+                        store.set('orderListRefresh', `${order_id}_confirm`);
+                    });
+            },
+            cancelOrder(e) {
+                let {
+                    order_id
+                } = e.currentTarget.dataset.item;
+                orderService.cancelOrder(order_id)
+                    .then(() => {
+                        this.info.order_info.state = '已取消';
+                        this.info.order_info.status = 'cancel';
+                        this.$apply();
+                        api.setTitle(this.info.order_info.state);
+                        store.set('orderListRefresh', `${order_id}_cancel`);
+                    });
+            }
+        }
+        // 获取订单信息
+        getData() {
+            api.request({
+                url: api.order_detail,
+                data: {
+                    order_id: this.order_id
+                }
+            }).then(json => {
+                json.order_info.is_fixed = true;
+                let {
+                    remain_time
+                } = json.order_info;
+                this.info = json;
+                if (json.order_info.remain_time > 0) {
+                    countdownTimeout = setTimeout(() => {
+                        this.fixed(remain_time * 1000, () => {
+                            startTime = Date.now();
+                            clearTimeout(countdownTimeout);
+                            countdownTimeout = null;
+                            this.getData();
+                        }, (time) => {
+                            this.info.order_info.time = orderService.format(time);
+                            this.$apply();
+                        });
+                    }, 0);
+                }
+                api.setTitle(this.info.order_info.state);
+                api.loading.hide();
+                this.loading = false;
+                this.$apply();
+            });
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+            this.resetData();
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                this.getData();
+            });
+        }
+        onUnload(){
+            startTime = Date.now();
+            clearTimeout(countdownTimeout);
+            countdownTimeout = null;
+        }
+        onLoad(options) {
+            this.order_id = options.order_id;
+            wx.hideShareMenu();
+            api.loading.show();
+        }
+        onShareAppMessage(res) {
+            let uid = api.userInfo.is_agency ? api.userInfo.uid : api.from_uid ? api.from_uid : api.userInfo.uid;
+            let {
+                id
+            } = res.target.dataset,
+                currentItem = this.info.order_info,
+                goodsInfo = currentItem.goods_list[0];
+            let title = `快来和我一起拼团！${goodsInfo.price}元购买【${goodsInfo.goods_name}】`,
+                path = `/pages/groupon/invite?from_uid=${uid}&order_id=${currentItem.f_order_id}&shop_id=${api.shop_id}`,
+                imageUrl = goodsInfo.img;
+            console.log(path, 'path');
+            return {
+                title: title,
+                path: path,
+                imageUrl: imageUrl,
+                success: res => {
+                    wx.showToast({
+                        title: '转发成功！'
+                    });
+                },
+                fail: res => {
+                    let msg = '转发失败！';
+                    if (/cancel/ig.test(res.errorMsg) > -1) {
+                        msg = '转发取消！'
+                    }
+                    wx.showToast({
+                        image: '../../images/fail.png',
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>
+<style lang="less">
+    @import 'order.less';
+</style>

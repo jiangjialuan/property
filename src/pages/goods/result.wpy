@@ -1,0 +1,182 @@
+<template>
+    <view class="result-page">
+        <view class="service-goods flex">
+            <image class="goods-image" src="{{result_info.goods_list[0].img}}" mode="aspectFill"/>
+            <view class="goods-info">
+                <view class="goods-title text-over-ellipsis">{{result_info.goods_list[0].goods_name}}</view>
+                <view class="service-price flex">
+                    <view class="current-price">订单总额：¥ <text>{{result_info.order_money}}</text></view>
+                </view>
+            </view>
+        </view>
+        <view class="voucher">
+            <view class="number">订单号：<text>{{result_info.sn}}</text></view>
+        </view>
+        <view class="qrcode flex">
+            <image src="{{result_info.qr_code}}" mode="aspectFill"/>
+            <view class="tip1">请服务员扫描以上二维码验券 </view>
+            <view class="tip2">(截图保存到相册更方便)</view>
+        </view>
+        <view class="order">
+            <view>下单时间：{{result_info.createtime}}</view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    export default class Result extends wepy.page {
+        config = {
+            'navigationBarTitleText': '自提核销'
+        };
+        data = {
+            result_info: {},
+            loading: false,
+            userInfo: {}
+        };
+        resetData() {
+            this.result_info = {};
+            this.loading = false;
+            this.userInfo = {};
+            this.$apply();
+        }
+        methods = {
+        };
+        getResultInfo(order_id) {
+            if (this.loading) return;
+            this.loading = true;
+            this.$apply();
+            let uid = wx.getStorageSync('uid'),
+                sdkInfo = wx.getStorageSync('sdk_zbinfo');
+            api.request({
+                url: api.get_verification_order,
+                data: {
+                    order_id: order_id
+                }
+            }).then(json => {
+                this.result_info = json;
+                this.loading = false;
+                this.$apply();
+                api.loading.hide();
+            }).catch(() => {
+                this.loading = false;
+                this.$apply();
+            });
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+        }
+        onLoad(options) {
+            api.loading.show();
+            this.resetData();
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                this.$apply();
+                let uid = wx.getStorageSync('uid'),
+                    sdkInfo = wx.getStorageSync('sdk_zbinfo');
+                if (!sdkInfo) {
+                    api.request({
+                        url: api.sdkInfo,
+                        data: {
+                            uid: uid
+                        }
+                    }).then(json => {
+                        wx.setStorageSync('sdk_zbinfo', json);
+                        this.getResultInfo(options.order_id);
+                    });
+                } else {
+                    this.getResultInfo(options.order_id);
+                }
+            });
+        }
+    }
+</script>
+<style lang="less">
+    .result-page {
+        .service-goods {
+            background: #fff;
+            padding: 30rpx;
+            font-size: 28rpx;
+            .goods-image {
+                width: 200rpx;
+                height: 200rpx;
+            }
+            .goods-info {
+                flex: 1;
+                margin-left: 30rpx;
+                .goods-title {
+                    font-size: 30rpx;
+                    color: #333;
+                    line-height: 45rpx;
+                    height: 90rpx;
+                    margin-bottom: 20rpx;
+                }
+                .service-price {
+                    .current-price {
+                        font-size: 28rpx;
+                        color: #ff552a;
+                        text {
+                            font-size: 36rpx;
+                        }
+                    }
+                    .origin-price {
+                        font-size: 24rpx;
+                        color: #666;
+                        margin-left: 30rpx;
+                    }
+                }
+            }
+        }
+        .voucher {
+            background: #fff;
+            padding: 30rpx;
+            font-size: 30rpx;
+            line-height: 42rpx;
+            .number {
+                text {
+                    color: #ff552a;
+                }
+            }
+        }
+        .qrcode {
+            background: #fff;
+            flex-direction: column;
+            padding: 40rpx;
+            image {
+                width: 342rpx;
+                height: 342rpx;
+            }
+            .tip1 {
+                font-size: 30rpx;
+                line-height: 42rpx;
+                color: #333;
+                margin-top: 20rpx;
+            }
+            .tip2 {
+                font-size: 24rpx;
+                line-height: 24rpx;
+                color: #999;
+                margin-top: 5rpx;
+            }
+        }
+        .order {
+            background: #fff;
+            padding: 30rpx;
+            font-size: 30rpx;
+            line-height: 42rpx;
+        }
+        .voucher,
+        .qrcode,
+        .order {
+            margin-top: 20rpx;
+        }
+    }
+</style>

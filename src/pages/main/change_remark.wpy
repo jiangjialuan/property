@@ -1,0 +1,116 @@
+<template>
+    <view class="order-confirm page">
+        <view class='form-panel'>
+            <view class="input-txt flex">
+                <view class="label-text">手机
+                    <text class="red">*</text>
+                </view>
+                <input placeholder="请填写您的手机号码" @blur="phoneInput" value="{{form.mobile}}" type="number" maxlength="11" />
+            </view>
+        </view>
+        <view class="page-footer">
+            <view class="btn confirm-btn flex" @tap="handleEditOk">保存修改</view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    export default class ChangeRemark extends wepy.page {
+        data = {
+            loading: true,
+            form: {}
+        };
+        // 表单验证
+        validateForm() {
+            let {
+                mobile,
+                remark
+            } = this.form;
+            if (!mobile) {
+                return '手机号码不能为空';
+            }
+            if (!/^1\d{10}$/.test(mobile)) {
+                return '手机号码格式不正确';
+            }
+            return '';
+        }
+        methods = {
+            phoneInput(e) {
+                this.form.mobile = e.detail.value;
+            },
+            handleEditOk() {
+                let tips = this.validateForm();
+                if (tips) {
+                    api.showToast(tips);
+                    return;
+                }
+                api.lastPage = "change_remark";
+                store.set('remark_info', this.form);
+                wx.navigateBack();
+            }
+        };
+        resetData() {
+            this.loading = true;
+            this.form = {};
+            this.$apply();
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+        }
+        onLoad(options) {
+            this.resetData();
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                this.form = {
+                    remark: options.remark,
+                    mobile: options.mobile
+                };
+                api.setTitle('修改备注')
+                this.loading = false;
+                this.$apply();
+            });
+        }
+    }
+</script>
+<style lang="less">
+    .form-panel {
+        margin-bottom: 18rpx;
+        .input-txt {
+            min-height: 100rpx;
+            border-bottom: 1px solid #f1f1f1;
+            background: #fff;
+            padding-left: 30rpx;
+            input,
+            textarea {
+                flex: 1;
+                border: none;
+                outline: none;
+                height: 40rpx;
+                line-height: 40rpx;
+            }
+            .label-text {
+                width: 100rpx;
+                .red {
+                    color: #FF552A;
+                }
+            }
+            .input-tips {
+                font-size: 20rpx;
+                color: #999;
+            }
+            &.consult {
+                align-items: start;
+                padding: 20rpx 0 20rpx 30rpx;
+            }
+        }
+    }
+</style>

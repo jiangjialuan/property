@@ -1,0 +1,122 @@
+<template>
+    <view class="member-info" wx:if="{{!loading}}">
+        <import src="/templates/member_level_progress.wxml" />
+        <view class="level-info flex">
+            <image src="{{member.member_info.current_level_pic}}" />
+            <view class="current-level-name">{{member.member_info.current_level_name}}</view>
+            <view class="current-level-right">{{member.member_info.current_level_name}}特权：{{member.member_info.goods_discount}}折优惠</view>
+            <template is="member_level_progress" data="{{member:member.member_info}}" />
+        </view>
+        <view class="level-list flex">
+            <image src="/images/member_right.png" />
+            <view class="level-list-item flex" wx:for="{{member.member_rights}}" wx:key="index">
+                <image src="{{item.level_pic}}" />
+                <view class="item-level">
+                    <view class="item-name">{{item.level_name}}</view>
+                    <view class="item-score">需{{item.level_points}}积分</view>
+                </view>
+                <view class="item-right">享受全场商品<text>{{item.goods_discount}}折</text>优惠</view>
+            </view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import api from '../../common/api';
+    export default class MemberInfo extends wepy.page {
+        config = {
+            navigationBarTitleText: '会员权益'
+        };
+        data = {
+            loading: true,
+            member: {}
+        };
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                api.setBackgroundColor(json.frontColor, json.backgroundColor);
+            });
+        }
+        onLoad(options) {
+            api.checkLogin().then(json => {
+                api.request({
+                    url: api.get_member_rights,
+                    data: {
+                        act: 1
+                    }
+                }).then(json => {
+                    this.member = json;
+                    this.loading = false;
+                    this.$apply();
+                })
+            });
+        }
+    }
+</script>
+<style lang="less">
+    .member-info {
+        font-size: 24rpx;
+        line-height: 1;
+        .level-info {
+            background: #fff;
+            padding: 40rpx 0;
+            flex-direction: column;
+            line-height: 1;
+            image {
+                width: 100rpx;
+                height: 100rpx;
+            }
+            .current-level-name {
+                font-size: 36rpx;
+                color: #333;
+                font-weight: bold;
+                margin-top: 20rpx;
+            }
+            .current-level-right {
+                color: #C9973F;
+                font-weight: bold;
+                margin-top: 20rpx;
+            }
+        }
+        .level-list {
+            background: #fff;
+            margin-top: 20rpx;
+            padding: 0 30rpx;
+            flex-direction: column;
+            &>image {
+                width: 248rpx;
+                height: 32rpx;
+                margin: 30rpx 0;
+            }
+            .level-list-item {
+                width: 100%;
+                padding: 30rpx 0;
+                border-top: 1px solid #e6e6e6;
+                image {
+                    width: 60rpx;
+                    height: 60rpx;
+                }
+                .item-level {
+                    margin-left: 30rpx;
+                    .item-name {
+                        color: #000;
+                    }
+                    .item-score {
+                        color: #999;
+                        margin-top: 12rpx;
+                    }
+                }
+                .item-right {
+                    height: 48rpx;
+                    margin-left: 30rpx;
+                    padding-left: 30rpx;
+                    color: #000;
+                    line-height: 48rpx;
+                    border-left: 1px solid #ccc;
+                    text {
+                        color: #FF552A;
+                    }
+                }
+            }
+        }
+    }
+</style>

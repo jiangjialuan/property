@@ -1,0 +1,17 @@
+<template name="goods-item">
+    <view class="goods-item flex">
+        <view class="goods-image">
+            <image src="{{item.img}}" mode="aspectFill" />
+            <view class="goods-mark" wx:if="{{is_groupon}}">
+                <image src="http://yimi.artqiyi.com/data/static/applet_images/groupon/mark.png" mode="aspectFill" />
+                <text>拼团</text>
+            </view>
+        </view>
+        <view class="goods-info">
+            <view class="goods-title">{{item.goods_name}}</view>
+            <view class="goods-price">¥{{item.price}}</view>
+            <view class="goods-attr" wx:if="{{item.pinlei != '类型:一米普通'}}">{{item.pinlei}} X {{item.num}}</view>
+            <view class="goods-attr" wx:else>X {{item.num}}</view>
+        </view>
+    </view>
+</template>

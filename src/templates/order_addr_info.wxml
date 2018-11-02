@@ -1,0 +1,16 @@
+<template name="addr-info">
+    <view class="addr-info" wx:if="{{info.order_info.type == 'virtual_goods' || info.order_info.is_goods == 2}}">
+        <view class="title">
+            <text class="name">手机：{{info.user_info.mobile}}</text>
+        </view>
+        <view class="addr text-over-ellipsis">备注：{{info.user_info.remark}}</view>
+    </view>
+    <view class="addr-info" wx:else="{{info.order_info.type == 'goods'}}">
+        <view class="title">
+            <text class="name">收货人：{{info.user_info.username}}</text>
+            <text class="phone">{{info.user_info.mobile}}</text>
+        </view>
+        <view class="addr text-over-ellipsis">收货地址：{{info.user_info.address}}</view>
+    </view>
+</template>
+

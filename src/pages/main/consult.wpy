@@ -1,0 +1,382 @@
+<template>
+    <view class="account-page page">
+        <import src="/common/wxParse/wxParse.wxml" />
+        <view class="content {{account_info.detail?'dot':''}}">
+            <image src="{{account_info.logo}}" class="account-logo" />
+            <view class="account-name">咨询预留信息</view>
+            <view class='form-panel'>
+                <view class="input-txt flex">
+                    <input placeholder="请填写您的真实姓名" @focus="inputFocus" value="{{form.name}}" @input="nameInput" />
+                </view>
+                <view class="input-txt flex">
+                    <input placeholder="请输入您的个人微信号" @focus="inputFocus" value="{{form.wechat}}" @input="wechatInput" />
+                </view>
+                <view class="input-txt flex">
+                    <input placeholder="请填写您的电话号码" @focus="inputFocus" value="{{form.mobile}}" type="number" @input="mobileInput" />
+                </view>
+                <view class="input-txt flex">
+                    <view class="input-tips">{{form.message.length||0}}/100</view>
+                    <textarea placeholder="请输入您希望了解的信息" maxlength="100" value="{{form.message}}" @focus="inputFocus" @input="questionInput" cursor-spacing="30" />
+                </view>
+                <view class="error-tips">{{error_tips}}</view>
+                <view class="submit-btn" @tap="submitForm">提交</view>
+            </view>
+            <view class="line" wx:if="{{account_info.detail}}"></view>
+        </view>
+        <view class="content introduce-content {{account_info.detail?'dot':''}}" wx:if="{{account_info.detail}}">
+            <view class="account-name">{{account_info.name}}介绍</view>
+            <view class="desc">
+                <template is="wxParse" data="{{wxParseData:detailContent.nodes}}" />
+            </view>
+        </view>
+        <view class="function-btn flex">
+            <image src="/images/btn_phone.png" @tap.stop="makePhoneCall" />
+            <image src="/images/btn_share.png" @tap.stop="showBottomMenu" />
+            <image src="/images/btn_home.png" @tap.stop="gotoHome" />
+        </view>
+        <Poster />
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import api from '../../common/api';
+    import WxParse from "../../common/wxParse/wxParse";
+    import Poster from '../../components/yunmi-poster';
+    export default class account extends wepy.page {
+        config = {
+            'navigationBarTitleText': '加盟咨询'
+        };
+        components = {
+            Poster
+        };
+        events = {
+            getQrcodeImage(id, type) {
+                api.getQrcodeImage(id, type).then(res => {
+                    this.$invoke('Poster', 'creatPoster', res.url);
+                }).catch(msg =>{
+                    this.$invoke('Poster', 'creatPoster', '');
+                    wx.hideLoading();
+                    api.showModal(msg);
+                });
+            }
+        };
+        data = {
+            error_tips: '',
+            form: {},
+            loading: true,
+            account_info: {}
+        };
+        renderTips(msg) {
+            this.error_tips = msg;
+            this.$apply();
+        }
+        resetData() {
+            this.error_tips = '';
+            this.form = {};
+            this.loading = true;
+        }
+        methods = {
+            showBottomMenu() {
+                let {
+                    name,
+                    logo
+                } = this.account_info;
+                this.$invoke('Poster', 'showBottomMenu', {
+                    group_people: 0,
+                    type: 'join_consult',
+                    image: 'join_consult',
+                    title: name,
+                    logo
+                });
+            },
+            gotoHome() {
+                wx.reLaunch({
+                    url: `/pages/main/index?shop_id=${api.shop_id}`
+                });
+            },
+            makePhoneCall() {
+                let {
+                    mobile_phone
+                } = this.account_info;
+                wx.makePhoneCall({
+                    phoneNumber: mobile_phone
+                });
+            },
+            mobileInput(e) {
+                this.form.mobile = e.detail.value;
+            },
+            wechatInput(e) {
+                this.form.wechat = e.detail.value;
+            },
+            questionInput(e) {
+                this.form.message = e.detail.value;
+            },
+            nameInput(e) {
+                this.form.name = e.detail.value;
+            },
+            inputFocus() {
+                this.renderTips("");
+            },
+            // 提交
+            submitForm() {
+                let tips = this.validateForm();
+                if (tips) {
+                    this.renderTips(tips);
+                    return false;
+                };
+                let data = Object.assign(this.form, {
+                    act: 1,
+                    buid: api.buid,
+                    shop_id: api.shop_id
+                })
+                api.request({
+                    url: api.save_consultation_msg,
+                    data: data,
+                    method: 'POST'
+                }).then(json => {
+                    api.showModal('申请成功,等待审核。', () => {
+                        wx.navigateBack();
+                    });
+                }).catch(msg => {
+                    wx.showToast({
+                        image: '../../images/fail.png',
+                        title: msg
+                    });
+                });
+            }
+        }
+        getBackgroundColor(){
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title,
+                    logo,
+                    mobile_phone,
+                    detail
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+                this.account_info.logo = logo;
+                this.account_info.name = title;
+                this.account_info.detail = detail;
+                this.account_info.mobile_phone = mobile_phone;
+                if (detail) {
+                    WxParse.wxParse("detailContent", "html", detail, this, 0);
+                }
+                this.$apply();
+            });
+        }
+        onShow() {
+            this.getBackgroundColor();
+        }
+        onLoad(options) {
+            this.resetData();
+            api.checkLogin().then(json => {
+                api.from_uid = options.from_uid || api.from_uid;
+                api.shop_id = options.shop_id || parseInt(api.shop_id);
+                this.getBackgroundColor();
+                api.userInfo = json;
+                this.$apply();
+            });
+        }
+        // 表单验证
+        validateForm() {
+            let {
+                name,
+                mobile,
+                wechat,
+                message
+            } = this.form;
+            if (!name) {
+                return '姓名不能为空';
+            }
+            if (!wechat) {
+                return '个人微信号不能为空';
+            }
+            if (!mobile) {
+                return '手机号码不能为空';
+            }
+            if (!/^1\d{10}$/.test(mobile)) {
+                return '手机号码格式不正确';
+            }
+            if (!message) {
+                return '信息不能为空';
+            }
+        }
+        onShareAppMessage(res) {
+            let uid = api.userInfo.is_agency ?
+                api.userInfo.uid :
+                api.from_uid ? api.from_uid : api.userInfo.uid,
+                title = this.title,
+                path = `/pages/main/consult?from_uid=${uid}&shop_id=${api.shop_id}`;
+            console.log(path, 'path');
+            return {
+                title: '诚邀加盟，马上了解详情',
+                path: path,
+                imageUrl: '/images/consult_share.jpg',
+                success: res => {
+                    wx.showToast({
+                        title: "转发成功！"
+                    });
+                },
+                fail: res => {
+                    let msg = "转发失败！";
+                    if (/cancel/gi.test(res.errorMsg) > -1) {
+                        msg = "转发取消！";
+                    }
+                    wx.showToast({
+                        image: "/images/fail.png",
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>
+<style lang="less">
+    .account-page {
+        .content {
+            margin: 110rpx 40rpx 40rpx;
+            background: #fff;
+            border-radius: 16rpx;
+            padding: 0 40rpx 80rpx;
+            position: relative;
+            .desc {
+                font-size: 28rpx;
+                color: #333;
+                line-height: 42rpx;
+                image {
+                    max-width: 100%;
+                }
+            }
+            .line {
+                position: absolute;
+                left: 40rpx;
+                right: 40rpx;
+                height: 108rpx;
+                z-index: 10;
+                bottom: -64rpx;
+                &:before,
+                &:after {
+                    content: '';
+                    position: absolute;
+                    width: 10rpx;
+                    height: 108rpx;
+                    border-radius: 6rpx;
+                    background: #DDEAF1;
+                    top: 12rpx;
+                }
+                &:before {
+                    left: 8rpx;
+                }
+                &:after {
+                    right: 8rpx;
+                }
+            }
+            &.introduce-content {
+                margin-top: 4rpx;
+                &:before,
+                &:after {
+                    top: 20rpx;
+                }
+            }
+            &.dot {
+                &:before,
+                &:after {
+                    content: '';
+                    position: absolute;
+                    width: 24rpx;
+                    height: 24rpx;
+                    border-radius: 50%;
+                    background: #C3C3C3;
+                    bottom: 20rpx;
+                }
+                &:before {
+                    left: 40rpx;
+                }
+                &:after {
+                    right: 40rpx;
+                }
+            }
+            .account-logo {
+                width: 140rpx;
+                height: 140rpx;
+                border-radius: 50%;
+                background: #fff;
+                position: absolute;
+                top: -70rpx;
+                left: 50%;
+                transform: translateX(-50%);
+            }
+            .account-name {
+                color: #333;
+                margin: 100rpx auto 40rpx;
+                font-size: 36rpx;
+                text-align: center;
+                font-weight: bold;
+            }
+            .form-panel {
+                margin-top: 22rpx;
+                .input-txt {
+                    min-height: 88rpx;
+                    background: #F0F0F0;
+                    border-radius: 4rpx;
+                    padding: 20rpx;
+                    margin-bottom: 20rpx;
+                    position: relative;
+                    &:last-child {
+                        margin-bottom: 0;
+                    }
+                    input,
+                    textarea {
+                        flex: 1;
+                        border: none;
+                        outline: none;
+                        line-height: 28rpx;
+                    }
+                    textarea {
+                        height: 180rpx;
+                    }
+                    .input-tips {
+                        font-size: 20rpx;
+                        color: #999;
+                        position: absolute;
+                        right: 20rpx;
+                        bottom: 20rpx;
+                    }
+                }
+                .error-tips {
+                    color: #f00;
+                    text-align: center;
+                    height: 40rpx;
+                    font-size: 24rpx;
+                }
+                .submit-btn {
+                    height: 88rpx;
+                    line-height: 88rpx;
+                    color: #fff;
+                    background: linear-gradient(180deg, rgba(136, 217, 156, 1), rgba(86, 175, 103, 1));
+                    border-radius: 16rpx;
+                    font-size: 36rpx;
+                    text-align: center;
+                }
+                .tips {
+                    margin: 60rpx 42rpx 0;
+                    color: #666;
+                }
+            }
+        }
+        .function-btn {
+            flex-direction: column;
+            position: fixed;
+            right: 0;
+            bottom: 230rpx;
+            z-index: 10;
+            image {
+                width: 92rpx;
+                height: 92rpx;
+                margin: 1rpx 0;
+            }
+        }
+    }
+</style>

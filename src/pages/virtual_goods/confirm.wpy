@@ -1,0 +1,250 @@
+<template>
+    <view class="order-confirm page">
+        <view class='form-panel'>
+            <view class="input-txt flex">
+                <view class="label-text">手机
+                    <text class="red">*</text>
+                </view>
+                <input placeholder="请填写您的手机号码" @blur="phoneInput" value="{{mobile}}" type="number" maxlength="11" />
+            </view>
+            <view class="input-txt flex">
+                <view class="label-text">备注
+                    <view class="input-tips">{{remark.length||0}}/20</view>
+                </view>
+                <textarea placeholder="请输入备注信息" maxlength="20" value="{{remark}}" @input="remarkInput" cursor-spacing="30" auto-height="true" />
+            </view>
+        </view>
+        <confirm/>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    import orderService from '../../common/orderService';
+    import confirm from '../../components/confirm';
+    export default class Confirm extends wepy.page {
+        config = {
+            'navigationBarTitleText': '确认订单',
+        };
+        components = {
+            confirm
+        };
+        data = {
+            loading: true,
+            mobile: '',
+            remark: '',
+            order_info: {},
+            coupon_info: {
+                page: 1,
+                has_next: true,
+                list: [],
+                loading: false
+            }
+        };
+        payOrder(json) {
+            orderService.payOrder(json.order_id, json.sn).then(() => {
+                let url = `/pages/main/pay_success?order_id=${json.order_id}`;
+                if (this.order_info.is_groupon == 1) {
+                    url = `/pages/groupon/pay_success?order_id=${json.order_id}`
+                }
+                wx.redirectTo({
+                    url
+                });
+            }).catch(() => {
+                wx.showModal({
+                    content: '支付遇到了一点问题，或者你取消了支付，你可以点击立即支付或者前往我的--我的订单进行支付',
+                    confirmText: '立即支付',
+                    confirmColor: '#f7982a',
+                    success: (res) => {
+                        if (res.confirm) {
+                            this.payOrder(json);
+                        } else {
+                            wx.redirectTo({
+                                url: '/pages/order/list'
+                            });
+                        }
+                    }
+                });
+            });
+        }
+        // 表单验证
+        validateForm() {
+            if (!this.mobile) {
+                return '手机号码不能为空';
+            }
+            if (!/^1\d{10}$/.test(this.mobile)) {
+                return '手机号码格式不正确';
+            }
+            return '';
+        }
+        events = {
+            // 更新数量
+            updateGoodsNum(num) {
+                api.request({
+                    url: api.update_order_goods_num,
+                    method: 'POST',
+                    data: {
+                        num: num
+                    }
+                }).then((json) => {
+                    this.order_info.goods_list[0].goods_list[0].num = num;
+                    this.order_info.goods_list[0].fullprivilege_bonus = json.fullprivilege_bonus;
+                    this.order_info.goods_list[0].gift_goods_name = json.gift_goods_name;
+                    this.order_info.goods_list[0].goods_money = json.goods_money;
+                    this.order_info.goods_list[0].member_bonus = json.member_bonus;
+                    this.order_info.order_money = json.order_money;
+                    this.order_info.shipping = json.shipping;
+                    this.order_info.total_bonus = json.total_bonus;
+                    this.order_info.goods_list[0].coupon_num = json.coupon_num;
+                    this.order_info.goods_list.map(item=>{
+                        item.selected_coupon = {};
+                        item.goods_list[0].fullprivilege_id = json.fullprivilege_id;
+                        item.expand_bonus = json.expand_bonus;
+                    });
+                    this.$invoke('confirm', 'initData', this.order_info);
+                });
+            },
+            // 获取优惠券信息
+            getCouponInfo(param) {
+                let {
+                    shop_id,
+                    page,
+                    available
+                } = param;
+                api.request({
+                    url: `${api.baseUrl}/mobile/coupon/user_coupon_list`,
+                    data: param
+                }).then(json => {
+                    json.list.map(item => {
+                        item.begin_time = item.begin_time.substr(0, 10);
+                        item.end_time = item.end_time.substr(0, 10);
+                    });
+                    if (page == 1) {
+                        this.coupon_info.list = json.list;
+                    } else {
+                        this.coupon_info.list = this.coupon_info.list.concat(json.list);
+                    }
+                    this.coupon_info.shop_id = shop_id;
+                    this.coupon_info.available = available;
+                    this.coupon_info.page = page;
+                    this.coupon_info.has_next = this.coupon_info.page < json.total_page;
+                    this.coupon_info.page++;
+                    this.$invoke('confirm', 'renderCoupon', this.coupon_info);
+                    this.$apply();
+                });
+            },
+            submit(order_info) {
+                let tips = this.validateForm();
+                if (tips) {
+                    api.showModal(tips);
+                    return;
+                };
+                if (this.loading || api.isClick) return;
+                api.isClick = true;
+                wx.showToast({
+                    title: '正在提交...',
+                    icon: 'loading',
+                    duration: 100000,
+                    mask: true
+                });
+                let data = {
+                        zb_id: api.buid,
+                        from_uid: api.userInfo.is_agency ? api.userInfo.uid : api.from_uid ? api.from_uid : api.userInfo.uid,
+                        mobile: this.mobile,
+                        remark: this.remark,
+                        version: 1
+                    },
+                    url = api.comm_submit_order_buy_now_woxiu;
+                if (order_info.is_groupon == 1) {
+                    url = api.comm_submit_order_buy_now_groupon;
+                }
+                data.fullprivilege_id = order_info.privilege_info.join(",");
+                data.coupon_id = order_info.coupon_id.join(",");
+                console.log(data, 'submit order');
+                api.request({
+                    url: url,
+                    data: data,
+                    method: 'POST'
+                }).then(json => {
+                    api.isClick = false;
+                    this.payOrder(json);
+                }).catch(msg => {
+                    api.loading.hide();
+                    api.isClick = false;
+                    if (!msg) return;
+                    api.showModal(msg);
+                });
+            }
+        };
+        methods = {
+            phoneInput(e) {
+                this.mobile = e.detail.value;
+            },
+            remarkInput(e) {
+                this.remark = e.detail.value;
+            }
+        };
+        resetData() {
+            this.order_info = {};
+            this.loading = true;
+            this.remark = '';
+            this.$apply();
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+        }
+        onLoad(options) {
+            this.resetData();
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                this.order_info = store.get('goods_info');
+                this.order_info.is_groupon = options.is_groupon;
+                this.order_info.from = options.from;
+                this.$invoke('confirm', 'initData', this.order_info);
+                this.loading = false;
+                this.$apply();
+            });
+        }
+    }
+</script>
+<style lang="less">
+    .form-panel {
+        margin-bottom: 18rpx;
+        .input-txt {
+            min-height: 100rpx;
+            border-bottom: 1px solid #f1f1f1;
+            background: #fff;
+            padding-left: 30rpx;
+            input,
+            textarea {
+                flex: 1;
+                border: none;
+                outline: none;
+                height: 40rpx;
+                line-height: 40rpx;
+            }
+            .label-text {
+                width: 100rpx;
+                .red {
+                    color: #FF552A;
+                }
+            }
+            .input-tips {
+                font-size: 20rpx;
+                color: #999;
+            }
+            &.consult {
+                align-items: start;
+                padding: 20rpx 0 20rpx 30rpx;
+            }
+        }
+    }
+</style>

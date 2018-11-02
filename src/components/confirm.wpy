@@ -1,0 +1,437 @@
+<template>
+    <view class="shop-item" wx:for="{{order_info.goods_list}}" wx:for-index="cartIndex" wx:for-item="cart_item" wx:key="cartIndex">
+        <view class="pickup-info" wx:if="{{cart_item.pickup_self && order_info.delivery_type == 'pickup'}}">
+            <view class="column flex" @tap="openLocation({{cart_item.pickup_info.longitude}},{{cart_item.pickup_info.latitude}})">地址
+                <view class="content flex">{{cart_item.pickup_info.pickup_address}}
+                    <image class="link" src="/images/more-link.png" />
+                </view>
+            </view>
+            <view class="column flex">营业时间
+                <view class="content flex">{{cart_item.pickup_info.work_time}}</view>
+            </view>
+            <view class="column flex" @tap="makePhoneCall({{cart_item.pickup_info.pickup_phone}})">电话
+                <view class="content flex">{{cart_item.pickup_info.pickup_phone}}
+                    <image class="link" src="/images/more-link.png" />
+                </view>
+            </view>
+        </view>
+        <view class="shop-name flex">
+            <image src="../images/shop-name.png" class="shop-image" />{{cart_item.shop_name}}
+            <view wx:if="{{cart_item.pickup_self}}" class="pick-icon">支持到店自提</view>
+        </view>
+        <view class="goods-info">
+            <block wx:for="{{cart_item.goods_list}}" wx:key="index">
+                <view class="goods-item">
+                    <view class="flex basic-info">
+                        <view class="goods-image">
+                            <image src="{{item.image}}" mode="aspectFill" />
+                            <view class="goods-mark" wx:if="{{order_info.is_groupon == 1}}">
+                                <image src="http://yimi.artqiyi.com/data/static/applet_images/groupon/mark.png" mode="aspectFill" />
+                                <text>拼团</text>
+                            </view>
+                        </view>
+                        <view class="goods-info">
+                            <view class="goods-title">{{item.photo_name}}</view>
+                            <view class="goods-price">¥{{item.current_price}}</view>
+                            <view class="goods-attr" wx:if="{{item.sku_attr != '类型:一米普通'}}">
+                                <text wx:if="{{order_info.from != 'cart'}}">已选:{{item.sku_attr}}</text>
+                                <text wx:else>已选:{{item.sku_attr}} x {{item.num}}</text>
+                            </view>
+                            <view class="goods-attr" wx:else>
+                                <text wx:if="{{order_info.from == 'cart'}}">已选:{{item.num}}</text>
+                            </view>
+                        </view>
+                    </view>
+                </view>
+                <view class="section" style="margin-top:0">
+                    <view class="section-item flex" wx:if="{{order_info.from != 'cart'}}" style="border-bottom:1px solid #e6e6e6;">
+                        <view class="section-label">数量</view>
+                        <view class="amount-box flex">
+                            <button class="amount-btn flex" disabled="{{num <= 1}}" plain="text" @tap="handleNumBtnClick('sub')">
+                                        <image src="/images/common/{{num<=1?'minus_disable':'minus'}}.png" />
+                                    </button>
+                            <input type="number" class="input-txt" value="{{num}}" data-num="{{num}}" @blur="handleNumInputBlur" @input="handleNumInputChange" />
+                            <button class="amount-btn flex" plain="text" @tap="handleNumBtnClick('add')">
+                                        <image src="/images/common/plus.png" />
+                                    </button>
+                        </view>
+                    </view>
+                </view>
+            </block>
+            <view class="section" style="margin-top:0">
+                <view class="section-item flex">
+                    <view class="section-label">优惠券</view>
+                    <view class="section-content flex-item" wx:if="{{cart_item.coupon_num}}">
+                        <view @tap="showCoupon({{cart_item.buserid}})" class="arrow-icon flex" style="color:#ff552a;" wx:if="{{cart_item.selected_coupon.id}}">优惠{{cart_item.selected_coupon.quota}}元</view>
+                        <view @tap="showCoupon({{cart_item.buserid}})" class="arrow-icon flex" style="color:#ff552a;" wx:else>有{{cart_item.coupon_num}}张可用优惠券</view>
+                    </view>
+                    <view class="section-content flex-item" wx:else>
+                        暂无可用优惠券
+                    </view>
+                </view>
+                <view class="section-item flex" wx:if="{{order_info.delivery_type == 'delivery' || order_info.delivery_type == 'pickup'}}">
+                    <view class="section-label">买家留言</view>
+                    <view class="section-content">
+                        <input placeholder="选填" maxlength="20" value="{{remark}}" @input="remarkInput({{cartIndex}})" />
+                    </view>
+                </view>
+            </view>
+        </view>
+        <view class="section">
+            <view class="section-item flex">
+                <view class="section-label">商品总额</view>
+                <view class="section-content">
+                    ¥{{cart_item.goods_money||0.00}}
+                </view>
+            </view>
+            <view class="section-item flex">
+                <view class="section-label">会员优惠</view>
+                <view class="section-content">
+                    -￥{{cart_item.member_bonus||0.00}}
+                </view>
+            </view>
+            <view class="section-item flex">
+                <view class="section-label">满减优惠</view>
+                <view class="section-content">
+                    -￥{{cart_item.fullprivilege_bonus||0.00}}
+                </view>
+            </view>
+            <view class="section-item flex expand_bonus">
+                <view class="section-label">合伙人优惠</view>
+                <view class="section-content">
+                    -￥{{cart_item.expand_bonus||0.00}}
+                </view>
+            </view>
+            <view class="section-item flex">
+                <view class="section-label">配送费</view>
+                <view class="section-content">
+                    + ¥{{order_info.delivery_type == 'pickup' ? 0.00 : cart_item.shipping||0.00}}
+                </view>
+            </view>
+            <view class="section-item flex" wx:if="{{cart_item.gift_goods_name}}">
+                <view class="section-label">赠品</view>
+                <view class="section-content">
+                    {{cart_item.gift_goods_name}}
+                </view>
+            </view>
+        </view>
+        <view class="page-footer flex">
+            <view class="summary-info flex">
+                合计：¥{{order_info.order_money}}
+                <view class="discount-info" wx:if="{{order_info.total_bonus}}"> | 已优惠¥{{order_info.total_bonus}}</view>
+            </view>
+            <view class="btn confirm-btn flex" @tap="submit">提交订单</view>
+        </view>
+        <view class="coupon-pop" wx:if="{{show_coupon}}" catchtouchmove='true'>
+            <view class="layer" style="z-index: 11;" @tap.stop="hideCoupon"></view>
+            <view class="popwin">
+                <view class="close_icon" @tap.stop="hideCoupon"></view>
+                <view class="goods-list page">
+                    <view class="pop-title flex">
+                        <view class="tab-item {{coupon_info.available == '1'?'active':''}}" @tap="changeCoupon(1)">可用优惠券</view>
+                        <view class="tab-item {{coupon_info.available == '0'?'active':''}}" @tap="changeCoupon(0)">不可用优惠券</view>
+                    </view>
+                    <scroll-view class="list-content page-content coupon-list" scroll-y="true" @scrolltolower="loadMoreCoupon">
+                        <view class="coupon-item flex" wx:for="{{coupon_info.list}}" wx:key="index" @tap="selectCoupon({{item.id}})">
+                            <view class="item-content flex-item flex">
+                                <view class="item-desc flex">
+                                    <view class="item-price">￥<text>{{item.quota}}</text></view>
+                                    <text>{{item.type == '1'?'无门槛':'满' + item.min_order_money + '可用'}}</text>
+                                </view>
+                                <view class="item-others flex">
+                                    <view class="item-name over-ellipsis">{{item.name}}</view>
+                                    <text>{{item.begin_time}} - {{item.end_time}}</text>
+                                </view>
+                            </view>
+                            <view class="item-operate flex {{item.selected ?'selected':''}}" wx:if="{{coupon_info.available == '1'}}">
+                                <image src="/images/coupon/{{item.selected ?'selected':'select'}}.png" mode="aspectFil" />
+                            </view>
+                            <view class="item-operate flex" wx:else>
+                                不可用
+                            </view>
+                        </view>
+                        <view class="loading" wx:if="{{loading}}">正在加载中...</view>
+                        <view class="no-data" wx:if="{{coupon_info.list.length == 0 && !loading}}"> (⊙ˍ⊙) 哎哟，这里空空如也…</view>
+                    </scroll-view>
+                    <view class="btn confirm-btn" @tap="confirmCoupon">确定</view>
+                </view>
+            </view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    export default class Confirm extends wepy.component {
+        data = {
+            order_info: {},
+            num: 0,
+            show_coupon: false,
+            coupon_info: {}
+        };
+        initData(data) {
+            console.log('initData',data);
+            let privilege_info = [],
+                total_goods_money = 0,
+                total_member_bonus = 0,
+                total_fullprivilege_bonus = 0,
+                total_shipping = 0,
+                total_coupon = 0,
+                total_expand_bonus = 0,
+                coupon_id = [];
+            let {
+                delivery_type
+            } = data;
+            data.goods_list.map(shop => {
+                shop.goods_list.map(goods => {
+                    privilege_info.push(`${goods.bid}-${goods.fullprivilege_id}`);
+                });
+                total_goods_money += shop.goods_money;
+                total_member_bonus += shop.member_bonus;
+                total_fullprivilege_bonus += shop.fullprivilege_bonus;
+                total_shipping += shop.shipping;
+                total_expand_bonus += shop.expand_bonus;
+                total_coupon += shop.selected_coupon && shop.selected_coupon.id ? shop.selected_coupon.quota : 0;
+                coupon_id.push(`${shop.buserid}-${shop.selected_coupon && shop.selected_coupon.id ? shop.selected_coupon.id : ''}`)
+            });
+            this.num = data.goods_list[0].goods_list[0].num;
+            data.coupon_id = coupon_id;
+            data.privilege_info = privilege_info;
+            data.total_bonus = Math.round((total_member_bonus + total_fullprivilege_bonus + total_coupon + total_expand_bonus) * 100) / 100;
+            data.order_money = Math.round((total_goods_money + (delivery_type == 'pickup' ? 0 : total_shipping) - data.total_bonus) * 100) / 100;
+            this.order_info = data;
+            this.$apply();
+        }
+        renderCoupon(data) {
+            let {
+                shop_id
+            } = data,
+            selected_coupon = {};
+            this.order_info.goods_list.map(item => {
+                if (item.buserid == shop_id) {
+                    selected_coupon = item.selected_coupon || {};
+                }
+            });
+            if (selected_coupon.id) {
+                data.list.map(item => {
+                    if (item.id == selected_coupon.id) {
+                        item.selected = true;
+                    }
+                });
+            }
+            this.coupon_info = data;
+            this.$apply();
+        }
+        // 更新数量
+        updateGoodsNum() {
+            this.$emit('updateGoodsNum', this.num);
+        }
+        methods = {
+            confirmCoupon() {
+                let {
+                    available,
+                    shop_id
+                } = this.coupon_info,
+                    selected_coupon = {}, coupon_ids = [];
+                this.coupon_info.list.map(item => {
+                    if (item.selected) {
+                        selected_coupon = item;
+                    }
+                });
+                this.order_info.goods_list.map(item => {
+                    if (item.buserid == shop_id) {
+                        item.selected_coupon = selected_coupon;
+                    }
+                });
+                this.initData(this.order_info);
+                this.show_coupon = false;
+                this.$apply();
+            },
+            selectCoupon(id) {
+                let {
+                    available,
+                    shop_id
+                } = this.coupon_info;
+                if (!parseInt(available)) return;
+                this.coupon_info.list.map(item => {
+                    item.selected = false;
+                    if (item.id == id) {
+                        item.selected = !item.selected;
+                    }
+                });
+                this.$apply();
+            },
+            changeCoupon(available) {
+                let {
+                    shop_id
+                } = this.coupon_info;
+                this.$emit('getCouponInfo', {
+                    shop_id,
+                    page: 1,
+                    available
+                });
+            },
+            loadMoreCoupon() {
+                let {
+                    has_next,
+                    shop_id,
+                    page,
+                    available
+                } = this.coupon_info;
+                if (!has_next) return;
+                this.$emit('getCouponInfo', {
+                    shop_id,
+                    page,
+                    available
+                });
+            },
+            showCoupon(shop_id) {
+                this.$emit('getCouponInfo', {
+                    shop_id,
+                    page: 1,
+                    available: 1
+                });
+                this.show_coupon = true;
+                this.$apply();
+            },
+            hideCoupon() {
+                this.show_coupon = false;
+                this.$apply();
+            },
+            openLocation(longitude, latitude) {
+                wx.openLocation({
+                    latitude: latitude,
+                    longitude: longitude
+                });
+            },
+            makePhoneCall(pickup_phone) {
+                wx.makePhoneCall({
+                    phoneNumber: pickup_phone
+                });
+            },
+            remarkInput(index, e) {
+                this.order_info.goods_list[index].remark = e.detail.value;
+                this.$apply();
+            },
+            handleNumBtnClick(type) {
+                if (type === 'sub') {
+                    if (this.num > 1) {
+                        this.num -= 1;
+                    }
+                } else {
+                    this.num++;
+                }
+                this.$apply();
+                this.updateGoodsNum();
+            },
+            handleNumInputBlur(e) {
+                let {
+                    num,
+                } = e.currentTarget.dataset, {
+                    value
+                } = e.detail;
+                this.num = parseInt(value) || 1;
+                this.updateGoodsNum();
+                this.$apply();
+            },
+            handleNumInputChange(e) {
+                let {
+                    value
+                } = e.detail
+                this.num = value;
+                this.$apply();
+                return value;
+            },
+            submit() {
+                this.$emit('submit', this.order_info);
+            }
+        };
+    }
+</script>
+<style lang="less">
+    @import "../templates/coupon.less";
+    .order-confirm {
+        padding-bottom: 120rpx;
+        .expand_bonus{
+            color: #ff552a;
+        }
+        .coupon-pop {
+            .popwin {
+                top: 306rpx;
+            }
+            .pop-title {
+                justify-content: center;
+                .tab-item {
+                    font-size: 32rpx;
+                    color: #333;
+                    padding: 0 50rpx;
+                    border-bottom: 4rpx solid transparent;
+                    &.active {
+                        color: #FF552A;
+                        border-bottom-color: #ff552a;
+                    }
+                }
+            }
+            .coupon-list {
+                padding: 30rpx 40rpx 0;
+                .item-operate {
+                    image {
+                        width: 60rpx;
+                        height: 60rpx;
+                    }
+                }
+            }
+            .confirm-btn {
+                width: 480rpx;
+                height: 92rpx;
+                font-size: 34rpx;
+                color: #fff;
+                background: #ff552a;
+                margin: 30rpx 135rpx;
+                border-radius: 54rpx;
+                text-align: center;
+                line-height: 92rpx;
+            }
+        }
+        .format-item {
+            margin-top: 30rpx;
+            justify-content: space-between;
+        }
+        .amount-box {
+            border-radius: 5rpx;
+            height: 48rpx;
+            line-height: 48rpx;
+            border: 2rpx solid #999;
+            width: 188rpx;
+            text-align: center;
+            .amount-btn {
+                width: 50rpx;
+                padding: 0;
+                height: 50rpx;
+                border: none;
+                background: transparent;
+                image {
+                    width: 48rpx;
+                    height: 48rpx;
+                }
+            }
+            .input-txt {
+                flex: 1;
+                color: #3d3d3d;
+                font-size: 26rpx;
+            }
+        }
+        .summary-info {
+            padding: 0 22rpx;
+            font-size: 34rpx;
+            color: #333;
+            font-weight: 600;
+            width: 540rpx;
+            .discount-info {
+                font-size: 24rpx;
+                color: #ccc;
+                margin-left: 12rpx;
+                font-weight: normal
+            }
+        }
+    }
+</style>

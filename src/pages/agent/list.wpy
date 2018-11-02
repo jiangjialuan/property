@@ -1,0 +1,141 @@
+<template>
+    <view class="agent-page page">
+        <view class="agent-list page-content">
+            <block wx:for="{{list}}" wx:key="index" wx:for-index="index" wx:for-item="item">
+                <view class="agent-item flex">
+                    <view class="flex">
+                        <image class="head-pic" src="{{item.head_pic}}"></image>
+                        <view class="basic-info">
+                            <view class="name">{{item.name}}</view>
+                            <view class="time">添加时间：{{item.invited_time}}</view>
+                        </view>
+                    </view>
+                    <view class="phone flex" @tap="makePhoneCall({{item.mobile_phone}})">
+                        <image src="../../images/phone.png" />联系
+                    </view>
+                </view>
+            </block>
+            <view class="no-data" wx:if="{{list.length == 0 && !hasNext}}"> (⊙ˍ⊙) 哎哟，这里空空如也…</view>
+            <view class="loading" wx:if="{{hasNext || loading}}">正在加载中...</view>
+            <view class="no-data" wx:if="{{list.length > 0 && !hasNext}}">没有更多数据了</view>
+        </view>
+    </view>
+</template>
+<script>
+import wepy from 'wepy';
+import store from '../../common/store';
+import api from '../../common/api';
+export default class List extends wepy.page {
+    config = {
+        'navigationBarTitleText': '我邀请的合伙人'
+    };
+
+    data = {
+        list: [],
+        page: 1,
+        hasNext: true,
+        loading: false
+    };
+
+    methods = {
+        makePhoneCall(phone) {
+            wx.makePhoneCall({
+                phoneNumber: phone
+            });
+        }
+    };
+
+    resetData(){
+        this.list = [];
+        this.page = 1;
+        this.hasNext = true;
+        this.loading = false;
+        this.$apply();
+    }
+
+    onReachBottom() {
+        if (!this.hasNext) return;
+        this.getAgentList();
+    }
+
+    onUnload(){
+        this.resetData();
+    }
+
+    getAgentList(page) {
+        if (this.loading) return;
+        this.loading = true;
+        page = page || 1;
+        this.$apply();
+        let data = {
+            act: 1,
+            page: this.page
+        };
+        api.request({
+            url: api.get_user_agent,
+            data: data
+        }).then(json => {
+            this.list = this.list.concat(json.list);
+            this.hasNext = this.page < json.total_page;
+            this.loading = false;
+            this.page++;
+            this.$apply();
+        });
+    }
+
+    onShow(){
+        api.getBackgroundColor().then(json => {
+            let { frontColor, backgroundColor, title } = json;
+            api.setBackgroundColor(frontColor, backgroundColor);
+        });
+    }
+
+    onLoad(options) {
+        this.resetData();
+        this.from = options.from || 'my';
+        api.checkLogin().then(json => {
+            this.userInfo = json;
+            this.getAgentList();
+        });
+    }
+}
+
+</script>
+<style lang="less">
+.agent-page {
+    .agent-item {
+        height: 160rpx;
+        padding: 16rpx 30rpx;
+        background: #fff;
+        justify-content: space-between;
+        .head-pic {
+            width: 124rpx;
+            height: 124rpx;
+            border-radius: 50%;
+            margin-right: 30rpx;
+        }
+        .name {
+            font-size: 28rpx;
+            color: #3d3d3d;
+        }
+        .time {
+            font-size: 22rpx;
+            color: #999;
+            margin-top: 24rpx;
+        }
+        .phone {
+            border-left: 1px solid #f2f2f2;
+            padding-left: 30rpx;
+            height: 100rpx;
+            font-size: 22rpx;
+            color: #3d3d3d;
+            image {
+                width: 36rpx;
+                height: 36rpx;
+                margin-right: 10rpx;
+            }
+        }
+    }
+}
+
+</style>

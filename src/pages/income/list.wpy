@@ -1,0 +1,200 @@
+<template>
+    <view class="order-page">
+        <view class="tabs">
+            <view @tap="getData('all')" class="tab-item {{type=='all'?'active': ''}}">全部</view>
+            <view @tap="getData('pre_produce')" class="tab-item {{type=='pre_produce'?'active': ''}}">待结算</view>
+            <view @tap="getData('completed')" class="tab-item {{type=='completed'?'active': ''}}">已结算</view>
+            <view @tap="getData('cancel')" class="tab-item {{type=='cancel'?'active': ''}}">已失效</view>
+        </view>
+        <view class="order-list">
+            <block wx:for="{{orderList}}" wx:key="index" wx:for-index="index" wx:for-item="item" wx:if="{{orderList.length > 0}}">
+                <view class="order-item">
+                    <view class="order-title flex">
+                        <view class="order-no">订单号：{{item.sn}}
+                            <text class="agency-text" wx:if="{{item.is_agent}}">合伙人</text>
+                        </view>
+                        <view class="order-state">{{item.state}}</view>
+                    </view>
+                    <view class="goods-item">
+                        <view class="goods-detail">
+                            <view class="name">商品名：{{item.goods_name}}</view>
+                            <view class="desc">
+                                <text>数量：{{item.goods_num}}件</text>
+                                <text>总价：¥{{item.order_money}}</text>
+                                <text class="income">{{item.state == '已结算'?'':'预估'}}佣金：¥{{item.expand_earning}}</text>
+                            </view>
+                            <view class="update-date">更新时间：{{item.updatetime}}</view>
+                        </view>
+                    </view>
+                </view>
+            </block>
+            <view class="no-data" wx:if="{{orderList.length == 0 && !loading}}"> (⊙ˍ⊙) 哎哟，这里空空如也…</view>
+            <view class="loading" wx:if="{{hasNext || loading}}">正在加载中...</view>
+            <view class="no-data" wx:if="{{orderList.length > 0 && !hasNext}}">没有更多数据了</view>
+        </view>
+    </view>
+</template>
+<script>
+import wepy from 'wepy';
+import store from '../../common/store';
+import api from '../../common/api';
+import orderService from '../../common/orderService';
+export default class List extends wepy.page {
+
+    config = {
+        'navigationBarTitleText': '推广订单收益'
+    };
+
+    data = {
+        page: 1,
+        hasNext: true,
+        orderList: [],
+        type: store.get('order_type') || 'all',
+        loading: false
+    };
+
+    onReachBottom() {
+        if (this.hasNext) {
+            this.methods.getData(this.type);
+        }
+    }
+
+    methods = {
+        // 获取订单列表
+        getData: (type) => {
+            if (this.loading) return;
+            this.loading = true;
+            this.$apply();
+            if (type !== this.type) {
+                this.page = 1;
+                this.orderList = [];
+                this.type = type;
+                this.$apply();
+                store.set('order_type', type);
+            }
+
+            let uid = wx.getStorageSync('uid'),
+                sdkInfo = wx.getStorageSync('sdk_zbinfo');
+            let data = {
+                id: uid,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts,
+                act: type,
+                p: this.page
+            };
+
+            api.request({
+                url: api.expand_order,
+                data: data
+            }).then(json => {
+                this.orderList = this.orderList.concat(json.list);
+                this.hasNext = this.page < parseInt(json.total_page, 10);
+                this.page++;
+                this.loading = false;
+                this.$apply();
+            });
+        },
+        payOrder(id, sn) {
+            orderService.payOrder(id, sn, 'order').then(json => {
+                let orderList = this.orderList;
+                for (let i = 0; i < orderList.length; i++) {
+                    let orderItem = orderList[i];
+                    if (id === orderItem.order_id) {
+                        orderItem.state = '待发货';
+                        break;
+                    }
+                }
+                this.orderList = orderList;
+                this.$apply();
+            }).catch(msg => {
+                api.loading.hide();
+                api.showModal(msg);
+            });
+        },
+        deleteOrder(id) {
+            orderService.deleteOrder(id)
+                .then(() => {
+                    let orderList = this.orderList;
+                    for (let i = 0; i < orderList.length; i++) {
+                        let orderItem = orderList[i];
+                        if (id === orderItem.order_id) {
+                            orderList.splice(i, 1);
+                            break;
+                        }
+                    }
+                    this.orderList = orderList;
+                    this.$apply();
+                });
+        },
+        confirmOrder(id) {
+            orderService.confirmOrder(id)
+                .then(() => {
+                    let orderList = this.orderList;
+                    for (let i = 0; i < orderList.length; i++) {
+                        let orderItem = orderList[i];
+                        if (id === orderItem.order_id) {
+                            orderItem.state = '已完成';
+                            break;
+                        }
+                    }
+                    this.orderList = orderList;
+                    this.$apply();
+                });
+        },
+        cancelOrder(id) {
+            orderService.cancelOrder(id)
+                .then(() => {
+                    let orderList = this.orderList;
+                    for (let i = 0; i < orderList.length; i++) {
+                        let orderItem = orderList[i];
+                        if (id === orderItem.order_id) {
+                            orderItem.state = '已取消';
+                            break;
+                        }
+                    }
+                    this.orderList = orderList;
+                    this.$apply();
+                });
+        }
+    };
+
+    onShow() {
+        this.page = 1;
+        this.hasNext = true;
+        this.orderList = [];
+        this.$apply();
+        let uid = wx.getStorageSync('uid'),
+            sdkInfo = wx.getStorageSync('sdk_zbinfo');
+        if (!sdkInfo) {
+            api.request({
+                url: api.get_sdk_zbinfo,
+                data: {
+                    uid: uid
+                }
+            }).then(json => {
+                wx.setStorageSync('sdk_zbinfo', json);
+                this.methods.getData(this.type);
+            });
+        } else {
+            this.methods.getData(this.type);
+        }
+        api.getBackgroundColor().then(json => {
+            let { frontColor, backgroundColor, title } = json;
+            api.setBackgroundColor(frontColor, backgroundColor);
+        });
+    }
+
+    onLoad(options) {
+        api.checkLogin().then(json => {
+            this.type = options.type || 'all';
+            this.$apply();
+        });
+    }
+}
+
+</script>
+<style lang="less">
+@import './income.less';
+
+</style>

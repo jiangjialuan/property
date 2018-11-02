@@ -1,0 +1,50 @@
+<template name="order_operate_panel">
+    <!-- 待付款 -->
+    <view class="section-item flex" wx:if="{{item.status == 'pay_order'}}">
+        <text class="label">应付款：<text class="red">¥{{item.order_money}}</text></text>
+        <view class="flex-item">
+            <view class="btn" bindtap="cancelOrder" data-item="{{item}}">取消订单</view>
+            <view class="btn confirm-btn" bindtap="payOrder" data-item="{{item}}">支付 {{item.time}}</view>
+        </view>
+    </view>
+    <!-- 已付款 -->
+    <view class="section-item flex" wx:if="{{item.status == 'pre_produce'}}">
+        <text class="label red">{{item.state}}</text>
+        <view class="flex-item">
+            <view wx:if="{{item.type == 'service_packages' || item.type == 'goods'}}" class="btn {{item.is_fixed?'':'hidden'}}" bindtap="gotoRefund" data-item="{{item}}">退款</view>
+            <view wx:if="{{item.type == 'service_packages'}}" class="btn confirm-btn" bindtap="changeTime" data-item="{{item}}">修改预约</view>
+            <view  wx:if="{{item.is_goods == 2 && (!item.is_groupon || (item.is_groupon && !item.remain_people))}}" class="btn confirm-btn" bindtap="gotoResultPage" data-item="{{item}}">去使用</view>
+            <button wx:if="{{item.is_groupon && item.remain_people && (item.status == 'pre_produce')}}" class="btn confirm-btn" open-type="share" plain="true" data-id="{{item.order_id}}">邀请好友参团</button>
+        </view>
+    </view>
+    <!-- 待收货 -->
+    <view class="section-item flex" wx:if="{{item.status == 'receive'}}">
+        <text class="label red">{{item.state}}</text>
+        <view class="flex-item">
+            <block wx:if="{{item.type == 'service_packages' || item.type == 'virtual_goods'}}">
+                <view class="btn confirm-btn" bindtap="confirmOrder" data-item="{{item}}">确认完成</view>
+            </block>
+            <block wx:else>
+                <view class="btn {{item.is_fixed?'':'hidden'}}" style="{{item.is_goods == 1?'min-width:0;':''}}" bindtap="gotoRefund" data-item="{{item}}">退款</view>
+                <view class="btn" bindtap="gotoDelivery" data-item="{{item}}" wx:if="{{item.is_goods == 1}}">查看物流</view>
+                <view class="btn confirm-btn" bindtap="confirmOrder" data-item="{{item}}">确认收货</view>
+            </block>
+        </view>
+    </view>
+    <!-- 退款中 -->
+    <view class="section-item flex" wx:if="{{item.status == 'refunding'}}">
+        <text class="label red">{{item.state}}</text>
+        <view class="flex-item">
+            <view class="btn" bindtap="gotoRefundDetail" data-item="{{item}}">查看详情</view>
+        </view>
+    </view>
+    <!-- 已完成(订单完成/取消/已退款) -->
+    <view class="section-item flex" wx:if="{{item.status == 'completed' || item.status == 'cancel' || item.status == 'refunded'}}">
+        <text class="label {{item.status !== 'cancel'?'red':''}}">{{item.state}}</text>
+        <view class="flex-item">
+            <view class="btn" bindtap="deleteOrder" data-item="{{item}}">删除订单</view>
+            <view wx:if="{{item.type == 'goods'}}" class="btn" bindtap="gotoDelivery" data-item="{{item}}" wx:if="{{item.is_goods == 1 && (item.status == 'completed')}}">查看物流</view>
+        </view>
+    </view>
+</template>
+

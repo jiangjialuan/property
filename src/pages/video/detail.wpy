@@ -1,0 +1,1141 @@
+<template>
+    <view class="page video-detail" wx:if="{{!loading}}">
+        <import src="/templates/video-goods-item.wxml" />
+        <view class="video-info {{video_class}}" style="height:{{video_item.height}}rpx">
+            <video src="{{video_item.url}}" @timeupdate="timeupdate" @ended="ended" style="height:{{video_item.height}}rpx" id="player" wx:if="{{!cover_show}}" autoplay="true" @play="play" @fullscreenchange="fullscreenchange">
+                <cover-image src="../../images/home.png" class="img-home" @tap="gotoIndex" wx:if="{{!fullscreen}}"/>
+                <cover-view wx:if="{{recommend_goods}}"  @tap="navigateTo('/pages/{{recommend_goods.is_groupon?\'groupon\':recommend_goods.type}}/detail?goods_id={{recommend_goods.goods_id}}')"  class="recommend-goods">
+                    <cover-view class="goods-name">{{recommend_goods.goods_name}}</cover-view>
+                </cover-view>
+            </video>
+            <view class="controls" hidden="{{!cover_show}}" style="height:{{video_item.height}}rpx">
+                <image src="{{video_item.cover}}" mode="aspectFit" class="video-cover" />
+                <view class="btn-area">
+                    <view class="play btn-video_item" @tap="gotoIndex">
+                        <image class="img" src="../../images/home-icon.png" mode="widthFix" /> 首页
+                    </view>
+                    <view class="play btn-video_item" @tap="replay">
+                        <image class="img" src="../../images/replay.png" mode="widthFix" /> 重播
+                    </view>
+                    <view class="pause btn-video_item" @tap="gotoVideoList">
+                        <image class="img" src="../../images/more.png" mode="widthFix" /> 更多视频
+                    </view>
+                </view>
+            </view>
+        </view>
+        <scroll-view class="container" @touchstart="touchstart" @touchend="touchend" upper-threshold="0" scroll-y="{{isScroll}}" @scrolltolower="scrolltolower" @scrolltoupper="scrolltoupper" @scroll="scroll" style="margin-top:{{video_item.height}}rpx;height:{{height}}px;">
+            <view class="video_item-els">
+                <view class="star-profile" @tap="gotoVideoList">
+                    <image src="{{video_item.head_pic}}" class="video-image" />
+                    <view class="flex"><view class="video-name text-overflow">{{video_item.name}}</view><view class="arrow-icon"></view></view>
+                </view>
+                <view class="flex">
+                    <view class="video_item-thumbsup video_item {{video_item.is_thumbsup?'active':''}}" @tap="thumbsUp">
+                        {{video_item.thumbsup_number ? video_item.thumbsup_number + '赞':'赞一下'}}
+                    </view>
+                    <view class="video_item video_item-share" @tap="showBottomMenu">转发</view>
+                </view>
+            </view>
+            <view class="goods-list-index" wx:if="{{video_item.goods.length}}">
+                <view class="goods-title flex">
+                    <view>视频同款</view>
+                </view>
+                <scroll-view scroll-x>
+                    <view class="flex">
+                        <template is="video-goods-item" data="{{item}}" wx:for="{{video_item.goods}}" wx:key="index" />
+                    </view>
+                </scroll-view>
+            </view>
+            <view class="video-comments">
+                <view class="comment-item {{comment_item_class}}">
+                    <view class="flex">
+                        <view class="comment-item-img flex">
+                            <image src="{{userInfo.head_pic || '../../images/common/user-logo.png'}}" />
+                        </view>
+                        <button open-type="getUserInfo" bindgetuserinfo="userLogin('login')" class="comment-item-text add-item" plain="true" wx:if="{{!userInfo.name}}">
+                                    <image src="../../images/comment_tips.png" />点赞都是套路，评论才是真爱......
+                                </button>
+                        <view class="comment-item-text add-item" @tap="openComment" wx:else>
+                            <image src="../../images/comment_tips.png" />点赞都是套路，评论才是真爱......
+                        </view>
+                    </view>
+                </view>
+                <view class="comment-item" wx:if="{{index <= 2}}" wx:for="{{comment_info.list}}" wx:for-index="index" wx:for-item="item" wx:key="index">
+                    <view class="comment-item-img">
+                        <image src="{{item.head_pic}}" />
+                    </view>
+                    <view class="comment-item-text">
+                        <view class="item-basic flex">
+                            <view class="text-overflow">{{item.username}}</view>
+                            <view>{{item.create_time}}</view>
+                        </view>
+                        <text class="item-content">{{item.content}}</text>
+                    </view>
+                </view>
+                <view wx:if="{{comment_info.list.length == 0 && !loading}}">
+                    <button open-type="getUserInfo" bindgetuserinfo="userLogin('login')" plain="true" wx:if="{{!userInfo.name}}" class="no-data">
+                                暂无评论,点击抢沙发
+                            </button>
+                    <view @tap="openComment" wx:else class="no-data">
+                        暂无评论,点击抢沙发
+                    </view>
+                </view>
+                <view class="more-comment" @tap="openCommentList" wx:if="{{comment_info.list.length}}">
+                    查看全部评论 ({{comment_info.count}})
+                </view>
+            </view>
+            <view class="video-list-index" wx:if="{{video_info.list.length > 0}}">
+                <view class="video-title flex">
+                    <view>TA的短视频</view>
+                    <view @tap="gotoVideoList" class="more-link flex">查看全部（{{video_info.totalCount}}）</view>
+                </view>
+                <scroll-view scroll-x>
+                    <view class="video-item" @tap="toggleVideo('{{item.id}}')" wx:for="{{video_info.list}}" wx:key="index">
+                        <image class="video-cover" src="{{item.cover}}" mode="aspectFill" />
+                        <view class="playing flex" wx:if="{{item.status=='playing'}}"></view>
+                        <view class="video-name">{{item.title}}</view>
+                    </view>
+                </scroll-view>
+            </view>
+        </scroll-view>
+    </view>
+    <shopIndex/>
+    <starInfo/>
+    <postComment/>
+    <commentInfo/>
+    <Poster />
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    import starInfo from 'yunmi-star-info';
+    import commentInfo from 'yunmi-comment-info';
+    import postComment from 'yunmi-post-comment';
+    import shopIndex from '../../components/shop/index';
+    import cartService from "../../common/cartService";
+    import loadCode from '../../common/loadCode';
+    import Poster from '../../components/yunmi-poster';
+    let offsetY, sid, lastY, maxHeight,
+        minHeight = 306,
+        lastGoodsTime = new Date().getTime(),
+        currentTime, videoContext,
+        initStatus = {
+            showList: false,
+            showComment: false
+        },
+        seeked = 0;;
+    export default class Videodetail extends wepy.page {
+        config = {
+            'disableScroll': true
+        };
+        components = {
+            commentInfo,
+            starInfo,
+            postComment,
+            shopIndex,
+            Poster
+        };
+        data = {
+            logo: '',
+            title: '',
+            scrollTop: 0,
+            isScroll: false,
+            loading: false,
+            video_item: {},
+            height: '',
+            show: 'hidden',
+            video_class: 'max-view',
+            comment_info: {},
+            recommend_goods: '',
+            cover_show: false,
+            video_info: {},
+            goodsId: 0,
+            comment_item_class: '',
+            userInfo: {},
+            fullscreen:false,
+            cart_num: 0
+        };
+        events = {
+            setCommentClass(cls) {
+                this.comment_item_class = cls;
+                this.$apply();
+            },
+            getVideoList(page) {
+                let id = store.get('zb_id'),
+                    svid = store.get('svid');
+                api.request({
+                    url: api.short_video_list,
+                    data: {
+                        uid: id,
+                        page: page
+                    }
+                }).then(json => {
+                    this.$invoke('starInfo', 'renderData', json, svid);
+                });
+            },
+            setVideoInfo(info) {
+                this.video_info = info;
+                this.$apply();
+            },
+            getCommentList(page) {
+                let svid = store.get('svid');
+                api.request({
+                    url: api.video_comment_list,
+                    data: {
+                        act: 1,
+                        svid: svid,
+                        page: page
+                    }
+                }).then(json => {
+                    this.$invoke("commentInfo", 'renderData', json);
+                });
+            },
+            setCommentInfo(info) {
+                this.comment_info = info;
+                this.$apply();
+            },
+            submitComment(value) {
+                let svid = store.get('svid');
+                api.request({
+                    url: api.video_comment,
+                    data: {
+                        act: 1,
+                        svid: svid,
+                        content: value
+                    },
+                    method: 'POST'
+                }).then(json => {
+                    this.$invoke('postComment', 'renderData');
+                    this.$emit('sucessComment', json);
+                });
+            },
+            setVideoHeight(type) {
+                let videoWindowInfo = store.get('videoWindowInfo');
+                if (type === 'min') {
+                    this.video_class = 'min-view';
+                    this.video_item.height = minHeight;
+                    this.height = videoWindowInfo.windowHeight - videoWindowInfo.windowWidth / 750 * this.video_item.height;
+                } else if (type === 'max') {
+                    this.scrollTop = 0;
+                    this.video_class = 'max-view';
+                    this.video_item.height = maxHeight;
+                    this.height = videoWindowInfo.windowHeight - videoWindowInfo.windowWidth / 750 * this.video_item.height;
+                } else {
+                    this.video_class = 'mini-view';
+                    this.$emit('pause');
+                }
+                this.$apply();
+            },
+            sucessComment(data) {
+                this.comment_info.list.unshift((data));
+                this.comment_info.count++;
+                this.$apply();
+                this.$emit('play');
+            },
+            toggleVideo(id) {
+                this.$invoke("commentInfo", 'hidePop');
+                this.$invoke('starInfo', 'hidePop');
+                if (id == sid) return;
+                sid = id;
+                wx.redirectTo({
+                    url: `/pages/video/detail?sid=${id}`
+                });
+            },
+            pause() {
+                if (this.cover_show) return;
+                videoContext && videoContext.pause();
+            },
+            play() {
+                if (this.cover_show) return;
+                videoContext && videoContext.play();
+            },
+            confirm(json, callback) {
+                let {
+                    data,
+                    type,
+                    goods_type,
+                    url
+                } = json;
+                if (type == 'buy') {
+                    api.request({
+                        url: url,
+                        method: "POST",
+                        data: data
+                    }).then(res => {
+                        callback && callback();
+                        store.set("goods_info", res);
+                        api.navigateTo(`/pages/${goods_type}/confirm?from=buy`);
+                    }).catch(msg => {
+                        api.showModal(msg);
+                        callback && callback();
+                    });
+                } else {
+                    cartService
+                        .addCart(data.wid, data.sku_id, data.num)
+                        .then(json => {
+                            wx.showToast({
+                                title: "已加入购物车"
+                            });
+                            callback && callback();
+                        }).catch(msg => {
+                            api.showModal(msg);
+                            callback && callback();
+                        });
+                }
+            },
+            getQrcodeImage(id, type) {
+                api.getQrcodeImage(id, type).then(res => {
+                    this.$invoke('Poster', 'creatPoster', res.url);
+                }).catch(msg => {
+                    this.$invoke('Poster', 'creatPoster', '');
+                    wx.hideLoading();
+                    api.showModal(msg);
+                });
+            }
+        };
+        openCommentList() {
+            this.$invoke('starInfo', 'hidePop');
+            this.$invoke("commentInfo", 'hidePop');
+            this.$emit('setVideoHeight', 'min');
+            this.$invoke("commentInfo", 'showPop');
+        }
+        // 获取商品信息
+        getGoodsInfo(goods_id) {
+            let uid = wx.getStorageSync("uid"),
+                sdkInfo = wx.getStorageSync("sdk_zbinfo");
+            let data = {
+                id: uid,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts
+            };
+            return api.request({
+                url: `${api.goodsDetail}/${goods_id}`,
+                data: data
+            });
+        }
+        openSpec(id, goods_type) {
+            this.getGoodsInfo(id).then(json => {
+                let url = api.buy_now_woxiu,
+                    {
+                        skus,
+                        wid,
+                        best_sku,
+                        is_groupon
+                    } = json;
+                if (goods_type == 'service_packages') {
+                    url = api.buy_now_combo;
+                }
+                if (is_groupon) {
+                    api.navigateTo(`/pages/groupon/detail?goods_id=${id}`);
+                    return;
+                }
+                if (skus && skus.length > 1) {
+                    this.$invoke('shopIndex', 'spec', {
+                        type: goods_type == 'goods' ? 'cart' : 'buy',
+                        url: url,
+                        goods_info: json
+                    });
+                } else {
+                    this.$invoke('shopIndex', 'submit', {
+                        type: goods_type == 'goods' ? 'cart' : 'buy',
+                        url: url,
+                        goods_info: json
+                    });
+                }
+            });
+        }
+        methods = {
+            fullscreenchange(e){
+                let {fullScreen, direction} = e.detail;
+                this.fullscreen = fullScreen;
+                console.log(e,'fullscreenchange');
+            },
+            gotoDetail(e) {
+                let {
+                    item
+                } = e.currentTarget.dataset;
+                api.navigateTo(`/pages/${item.is_groupon?'groupon':item.type}/detail?goods_id=${item.bid}`);
+            },
+            openSpecLink(e) {
+                let {
+                    item
+                } = e.currentTarget.dataset;
+                this.$emit('setVideoHeight', 'min');
+                this.openSpec(item.bid, item.type);
+            },
+            showBottomMenu() {
+                let {
+                    cover,
+                    title,
+                    type,
+                    svid,
+                    imageWidth,
+                    imageHeight
+                } = this.video_item;
+                this.$invoke('Poster', 'showBottomMenu', {
+                    bid: svid,
+                    image: cover,
+                    wname: title,
+                    type: 'video',
+                    title: this.title,
+                    logo: this.logo,
+                    imageWidth,
+                    imageHeight
+                });
+            },
+            play() {
+                if (seeked) return;
+                if (!videoContext) {
+                    videoContext = wx.createVideoContext('player');
+                }
+                videoContext.seek(currentTime || 0);
+                seeked = 1;
+            },
+            toggleVideo(id) {
+                this.$emit('toggleVideo', id);
+            },
+            replay() {
+                this.cover_show = false;
+                this.$apply();
+                this.$emit('play');
+            },
+            navigateTo(url) {
+                api.navigateTo(url);
+            },
+            gotoIndex() {
+                wx.reLaunch({
+                    url: `/pages/main/index?shop_id=${api.shop_id}`
+                });
+            },
+            gotoVideoList() {
+                this.$invoke("commentInfo", 'hidePop');
+                this.$emit('setVideoHeight', 'min');
+                this.$invoke('starInfo', 'showPop');
+            },
+            scrolltolower() {
+                this.loading = false;
+                this.$apply();
+            },
+            scrolltoupper() {
+                this.isScroll = false;
+                this.$emit('setVideoHeight', 'max');
+                this.$apply();
+            },
+            scroll(e) {
+                this.scrollTop = e.detail.scrollTop;
+            },
+            touchstart(e) {
+                lastY = e.changedTouches[0].pageY;
+            },
+            touchend(e) {
+                offsetY = e.changedTouches[0].pageY - lastY;
+                if (Math.abs(offsetY) <= 50) return;
+                let scrollTop = this.scrollTop;
+                if (scrollTop === 0) {
+                    if (offsetY < 0) {
+                        this.isScroll = true;
+                        this.$emit('setVideoHeight', 'min');
+                    } else {
+                        this.isScroll = false;
+                        this.$emit('setVideoHeight', 'max');
+                    }
+                } else {
+                    this.isScroll = true;
+                    this.$emit('setVideoHeight', 'min');
+                }
+            },
+            thumbsUp() {
+                if (this.video_item.is_thumbsup) {
+                    wx.showToast({
+                        title: '已经点过赞了'
+                    });
+                } else {
+                    api.request({
+                        url: api.thumbs_up,
+                        data: {
+                            act: 1,
+                            svid: sid
+                        },
+                        method: 'POST'
+                    }).then((data) => {
+                        this.video_item.is_thumbsup = 1;
+                        this.video_item.thumbsup_number++;
+                        this.$apply();
+                    });
+                }
+            },
+            timeupdate(event) {
+                if (!this.video_item.uid) return;
+                let currentTime = parseInt(event.detail.currentTime, 10),
+                    goodsInfo = this.video_item.show_goods;
+                if (!goodsInfo.length) return;
+                let goodsItem = goodsInfo.find((video_item) => video_item.show_time == currentTime);
+                if (goodsItem) {
+                    lastGoodsTime = new Date().getTime();
+                    goodsItem.goods_name = goodsItem.goods_name.substr(0, 16);
+                    this.recommend_goods = goodsItem;
+                    this.$apply();
+                }
+            },
+            ended() {
+                this.recommend_goods = '';
+                this.cover_show = true;
+                this.$apply();
+            },
+            userLogin(type, e) {
+                let sid = store.get('svid');
+                api.userLogin(type, e).then(json => {
+                    this.$invoke("commentInfo", 'hidePop');
+                    this.$invoke('postComment', 'showPop');
+                    this.userInfo = json.data.data;
+                    this.$apply();
+                });
+            },
+            openComment() {
+                this.$invoke("commentInfo", 'hidePop');
+                this.$invoke('postComment', 'showPop');
+            }
+        };
+        //获取单个视频信息
+        getVideoInfo(id) {
+            api.request({
+                url: api.short_video_info,
+                data: {
+                    act: 1,
+                    svid: id
+                }
+            }).then((data) => {
+                store.set("currentGoodsData", data);
+                if (!data.uid) {
+                    api.showModal('视频不存在', () => {
+                        wx.navigateBack();
+                    });
+                    return;
+                }
+                api.loading.hide();
+                data.goods.map(item => {
+                    item.length = data.goods.length;
+                });
+                data.goods = data.goods.filter(goods => {
+                    let {
+                        type
+                    } = goods;
+                    if (type == 'goods' || type == 'virtual_goods' || type == 'consult') {
+                        goods.length = data.goods.length;
+                    }
+                    return type == 'goods' || type == 'virtual_goods' || type == 'consult';
+                });
+                this.video_item = data;
+                this.video_item.imageWidth = data.width;
+                this.video_item.imageHeight = data.height;
+                this.video_item.svid = id;
+                maxHeight = Math.ceil(data.height * 750 / data.width);
+                if (maxHeight >= 840) {
+                    maxHeight = 840;
+                }
+                this.video_item.height = maxHeight;
+                store.set('svid', id);
+                store.set('zb_id', data.uid);
+                wx.setNavigationBarTitle({
+                    title: data.title
+                });
+                this.$emit('setVideoHeight', 'max');
+                this.$invoke('starInfo', 'getData');
+                this.$invoke("commentInfo", 'getData');
+                //展示主播的视频列表
+                if (initStatus.showList) {
+                    this.$emit('setVideoHeight', 'min');
+                    this.$invoke('starInfo', 'showPop');
+                }
+                // 展示评论列表
+                if (initStatus.showComment) {
+                    this.openCommentList();
+                }
+                this.video_item.goods.map(goods => {
+                    let {
+                        type
+                    } = goods;
+                    if (type == 'subscribe') {
+                        goods.star_levels = api.renderStar(goods.star);
+                    }
+                });
+                this.$apply();
+            });
+        }
+        initInterval() {
+            this.goodsInterval = setInterval(() => {
+                if (new Date().getTime() - lastGoodsTime >= 6000) {
+                    this.recommend_goods = '';
+                    this.$apply();
+                }
+            }, 500);
+        }
+        onLoad(options) {
+            this.initInterval();
+            api.loading.show();
+            this.resetData();
+            initStatus = {
+                showList: options.list || false,
+                showComment: options.comment || false
+            };
+            sid = options.sid;
+            let shop_id = '',
+                scene = decodeURIComponent(options.scene);
+            if (scene != 'undefined') {
+                let sceneObj = {};
+                scene.split(',').map(item => {
+                    let value = item.split(':');
+                    sceneObj[value[0]] = value[1];
+                });
+                sid = sceneObj.svid;
+                shop_id = sceneObj.shop_id;
+            }
+            currentTime = options.time || 0;
+            store.set(`${sid}_flag`, '');
+            let videoWindowInfo = store.get('videoWindowInfo');
+            if (!videoWindowInfo) {
+                wx.getSystemInfo({
+                    success: (res) => {
+                        store.set('videoWindowInfo', res);
+                    }
+                });
+            }
+            let mta = require('../../common/mta_analysis.js');
+            mta.Page.init();
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                api.from_uid = options.from_uid || api.from_uid;
+                api.shop_id = shop_id || options.shop_id || parseInt(api.shop_id);
+                this.$apply();
+                this.getVideoInfo(sid);
+            });
+        }
+        onShow() {
+            loadCode.getCode();
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    logo,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+                this.title = title;
+                this.logo = logo;
+                this.$apply();
+            });
+        }
+        onUnload() {
+            this.resetData();
+            this.$invoke('starInfo', 'hidePop');
+            this.$invoke("commentInfo", 'hidePop');
+            clearInterval(this.goodsInterval);
+        }
+        resetData() {
+            this.video_item = {};
+            this.comment_info = {};
+            this.video_class = 'max-view';
+            this.isScroll = false;
+            this.loading = false;
+            this.recommend_goods = '';
+            this.cover_show = false;
+            this.userInfo = {};
+            videoContext = "";
+            this.comment_item_class = '';
+            seeked = 0;
+            this.$apply();
+        }
+        onShareAppMessage(res) {
+            let uid = this.userInfo.is_agency ? this.userInfo.uid : api.from_uid ? api.from_uid : this.userInfo.uid;
+            let {
+                title,
+                share_pic
+            } = this.video_item;
+            console.log(`/pages/video/detail?sid=${sid}&from_uid=${uid}&shop_id=${api.shop_id}`);
+            return {
+                title: title,
+                imageUrl: share_pic,
+                path: `/pages/video/detail?sid=${sid}&from_uid=${uid}&shop_id=${api.shop_id}`,
+                success: (res) => {
+                    wx.showToast({
+                        title: '转发成功！'
+                    });
+                },
+                fail: (res) => {
+                    let msg = '转发失败！';
+                    if (/cancel/ig.test(res.errorMsg) > -1) {
+                        msg = '转发取消！'
+                    }
+                    wx.showToast({
+                        image: '../../images/fail.png',
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>
+<style lang="less">
+    .popwin{
+        top: 306rpx;
+    }
+    page {
+        background: #f7f7f7;
+        height: 100%;
+        overflow: hidden;
+    }
+    .goods-list-index {
+        border-top: 1px solid rgba(153, 153, 153, 0.3);
+        &:before {
+            content: "";
+            border-top: 1px solid rgba(153, 153, 153, 0.3);
+            border-right: 1px solid rgba(153, 153, 153, 0.3);
+            transform: rotate(-45deg);
+            position: absolute;
+            width: 12rpx;
+            height: 12rpx;
+            left: 45rpx;
+            top: -8rpx;
+            background: #fff;
+        }
+    }
+    .text-overflow {
+        text-overflow: ellipsis;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    .video-info {
+        position: fixed;
+        top: 0;
+        z-index: 1;
+        right: 0;
+        left: 0;
+        video {
+            width: 100%;
+            margin: auto;
+        }
+        &.mini-view {
+            video {
+                display: none;
+            }
+        }
+        &.min-view {
+            video {
+                height: 306rpx;
+            }
+        }
+    }
+    .video-detail {
+        color: #999;
+        .cart-btn {
+            position: fixed;
+            bottom: 88rpx;
+            right: 22rpx;
+            background: rgba(255, 60, 92, .85);
+            width: 88rpx;
+            height: 88rpx;
+            border-radius: 50%;
+            justify-content: center;
+            image {
+                width: 40rpx;
+                height: 40rpx;
+            }
+            .cart-num {
+                position: absolute;
+                color: #ff3c5c;
+                min-width: 18rpx;
+                height: 24rpx;
+                line-height: 12px;
+                text-align: center;
+                border-radius: 12rpx;
+                right: 16rpx;
+                top: 16rpx;
+                background: #fff;
+                padding: 0 4rpx;
+            }
+        }
+        .video_item-els {
+            background: #fff;
+            padding: 0 20rpx;
+            height: 100rpx;
+            line-height: 100rpx;
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            image {
+                display: inline-block;
+            }
+            .star-profile {
+                display: flex;
+                align-items: center;
+                .video-image {
+                    width: 60rpx;
+                    height: 60rpx;
+                    border-radius: 30rpx;
+                }
+                .video-name {
+                    padding:0 0 0 20rpx;
+                    color:#333;
+                    max-width:250rpx;
+                }
+            }
+            .shop-btn {
+                color: #fff;
+                background: #ff3c5c;
+                border-radius: 30rpx;
+                width: 140rpx;
+                text-align: center;
+                font-size: 24rpx;
+                line-height: 48rpx;
+                height: 48rpx;
+            }
+        }
+        .video-comments {
+            background: #fff;
+            margin-top: 20rpx;
+            padding-top: 20rpx;
+            .more-comment {
+                border-top: 1px solid #e6e6e6;
+                height: 78rpx;
+                line-height: 78rpx;
+                color: #3d3d3d;
+                text-align: center;
+                margin-top: -22rpx;
+                background: #fff;
+            }
+            .comment-title {
+                text-align: center;
+                position: relative;
+                padding: 10rpx 0px 20rpx;
+                &::before,
+                &::after {
+                    content: '';
+                    position: absolute;
+                    top: 43%;
+                    height: 1px;
+                    width: 30%;
+                    background: #333;
+                }
+                &::before {
+                    left: 20rpx;
+                }
+                &::after {
+                    right: 20rpx;
+                }
+            }
+            .no-data {
+                text-align: center;
+                border: none;
+                color: #999;
+                font-size: 24rpx;
+                border-top: 1px solid #e6e6e6;
+                line-height: 60rpx;
+            }
+            .comment-item {
+                margin: 0px 20rpx 20rpx;
+                border-bottom: 1px solid #e6e6e6;
+                display: flex;
+                &:first-child {
+                    border-bottom: none;
+                    margin-bottom: 40rpx;
+                }
+                &.fixed {
+                    position: fixed;
+                    bottom: 0;
+                    margin: 0;
+                    padding: 10rpx 20rpx;
+                    background: #fff;
+                    border-top: 1px solid #e6e6e6;
+                    z-index: 20;
+                }
+                &:last-child {
+                    margin-bottom: 0;
+                    border-bottom: none;
+                }
+                image {
+                    width: 60rpx;
+                    height: 60rpx;
+                    border-radius: 60rpx;
+                }
+                .comment-item-img {
+                    margin-right: 20rpx;
+                    width: 60rpx;
+                }
+                .comment-item-text {
+                    width: 630rpx;
+                    &.add-item {
+                        height: 60rpx;
+                        line-height: 60rpx;
+                        position: relative;
+                        border-radius: 30rpx;
+                        background: #f7f7f7;
+                        text-align: center;
+                        color: #999;
+                        font-size: 26rpx;
+                        border: none;
+                        &:before {
+                            content: '';
+                            position: absolute;
+                            top: 0;
+                            left: 0;
+                            right: 0;
+                            bottom: 0;
+                            border: 1px solid #e8e8e8;
+                            border-radius: 30rpx;
+                        }
+                    }
+                    image {
+                        width: 32rpx;
+                        height: 32rpx;
+                        display: inline-block;
+                        vertical-align: middle;
+                        margin-right: 12rpx;
+                    }
+                    .item-basic {
+                        height: 60rpx;
+                        line-height: 60rpx;
+                        color: #999;
+                        justify-content: space-between;
+                    }
+                    .item-content {
+                        clear: both;
+                        padding: 20rpx 0px;
+                        word-wrap: break-word;
+                        word-break: break-all;
+                        overflow-x: hidden;
+                        display: block;
+                        color: #333;
+                    }
+                }
+            }
+        }
+    }
+    .container {
+        .video_item {
+            margin-right: 50rpx;
+            border: none;
+            padding: 0;
+            color: #333;
+            font-size: 20rpx;
+            background-position: top;
+            background-repeat: no-repeat;
+            background-size: 48rpx;
+            padding-top: 42rpx;
+            min-width: 80rpx;
+            text-align: center;
+            line-height: 36rpx;
+            &:last-child {
+                margin-right: 0rpx;
+            }
+            &.video_item-share {
+                border: none;
+                background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwBAMAAAClLOS0AAAAMFBMVEUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABaPxwLAAAAD3RSTlMAxPAb2xYO0Dnlya2Qh7um0Iq5AAAAu0lEQVQ4y2MYGSBn/n8wYGD4//+TygG4OFv9f5hElZTTfwe4BO+XBoRuzv8KcDbLDyRjt0xCSPB/QJjK583yAZuEgdADdmwSrIyKDFzYJAKEBBKw6WBmVGRmQJFAaAgA0QgJuAZWBmwSBkICBtgkWOEaEBLIGviRLYdrQJeAagjAkID5AZtEwiKwBkwJ64+sDFglbDcYYJdgNkPioTLpLoGZfBj6cSQ4Dv8LKEkUAb4noCRqOPh5jGFEAABPzGnIYCc54QAAAABJRU5ErkJggg==);
+            }
+            &.video_item-thumbsup {
+                background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAMAAABg3Am1AAAAVFBMVEUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAU4H24AAAAG3RSTlMARLuH7A/WemWpBfdaUCHgzLCfk8ONbD4zLXZlDi58AAAA7ElEQVRIx+3Ty86DIBCG4WFEUDwfq/3u/z5/qn/TpMFmZtdF3wUb8wQmCP364tqSJ0PygkOsDGJg0BlvMYlBhoxoR5VLQYk6roxGChiPiResUjDjdhzMS4HDfoA7ycqBx7gjCiFYMVOsx014zRb1cx9BobZgit3B9LlmYNvbCuD8vIyez8b00Qqcuf9RPV5NKdDBm6J5fWvNs6xCnQDAsWbJzXsdyFHpwAanAytGHRhR6IDDpgJx5qACBjOpgMeiAwNqHbBoVWCHJRXwKFUgdGjo6vc2BqV5a4ALVw8ond2unyizdfzW0tKv7+sPTusUDWGvdBMAAAAASUVORK5CYII=);
+                &.active {
+                    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwBAMAAAClLOS0AAAAKlBMVEUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKE86IAAAADXRSTlMAv4DgCNf4pzz3zhkSw1EWRQAAAJNJREFUOMtjGIZAWBC7uOPduzFYJXjv3r2EVUL27t27WCVsgRIKuCQEqCLBfReHBNNdHJbr3sXuXCeQ+FU0QRZlY4O7YAlBQUEhBZRQunAXDm4hhxJCAuE0TIkLFEsQtkMBl0QDLgkGUiUu4pK4hEviBi6JC7gkEnBJKOCQuOaAkg4QEteR41ZRUGCiIBQUMAwrAACX3AShH+j7ggAAAABJRU5ErkJggg==);
+                }
+            }
+        }
+    }
+    .controls {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-direction: column;
+        background: #000;
+        position: relative;
+        overflow: hidden;
+        .btn-area {
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            flex: 1;
+            z-index: 1;
+            color: #fff;
+            .btn-video_item {
+                width: 200rpx;
+                text-align: center;
+                .img {
+                    width: 48rpx;
+                    margin: 0 auto 12rpx;
+                    display: block;
+                }
+            }
+        }
+        .video-cover {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: auto;
+            height: auto;
+            &:before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, .75);
+            }
+        }
+        .goods-info {
+            height: 108rpx;
+            width: 100%;
+            text-align: center;
+            background-color: rgba(255, 255, 255, .15);
+            color: #999;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 1;
+            .goods-img {
+                width: 80rpx;
+                height: 80rpx;
+                padding-left: 22rpx;
+            }
+            .goods-desc {
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                height: 80rpx;
+                text-align: left;
+                padding: 0 24rpx;
+                flex: 1;
+            }
+            .goods-name {
+                font-size: 26rpx;
+                color: #fff;
+                overflow: hidden;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                width: 450rpx;
+            }
+            .goods-price {
+                color: #fff;
+                font-size: 24rpx;
+                text-align: left;
+            }
+            .more-goods {
+                height: 60rpx;
+                line-height: 60rpx;
+                border-left: 1px solid #fff;
+                width: 160rpx;
+                text-align: center;
+                color: #fff;
+                font-size: 22rpx;
+            }
+        }
+    }
+    .img-home {
+        width: 78rpx;
+        height: 78rpx;
+        position: absolute;
+        top: 22rpx;
+        left: 22rpx;
+    }
+    .recommend-goods {
+        position: absolute;
+        right: 22rpx;
+        bottom: 22rpx;
+        border-radius: 12rpx;
+        background: #fff;
+        padding: 12rpx;
+        width: 200rpx;
+        font-size: 22rpx;
+        border: 1px solid #ff3c5c;
+        .goods-name {
+            color: #333;
+            height: 54rpx;
+            line-height: 54rpx;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: no-wrap;
+            margin-bottom: 8rpx;
+        }
+        .goods-price {
+            color: #ff3c5c;
+            line-height: 1;
+            height: 30rpx;
+        }
+    }
+    .video-list-index {
+        scroll-view {
+            white-space: nowrap;
+        }
+        background:#fff;
+        padding:22rpx;
+        margin-top:20rpx;
+        .video-title {
+            margin: 4rpx auto 22rpx;
+            color: #333;
+            justify-content: space-between;
+            .more-link {
+                font-size: 22rpx;
+                color: #999;
+                &:after {
+                    content: '';
+                    border-right: 1px solid #999;
+                    border-top: 1px solid #999;
+                    width: 12rpx;
+                    height: 12rpx;
+                    transform: rotate(45deg);
+                    display: inline-block;
+                }
+            }
+        }
+        .video-item {
+            height: 168rpx;
+            width: 302rpx;
+            color: #333;
+            position: relative;
+            display: inline-block;
+            margin-right: 12rpx;
+            position: relative;
+            .playing {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                justify-content: center;
+                background: rgba(0, 0, 0, .4);
+                border-radius: 12rpx;
+                &:before {
+                    content: '正在播放';
+                    color: #fff;
+                    font-size: 22rpx;
+                    width: 144rpx;
+                    height: 48rpx;
+                    border-radius: 24rpx;
+                    line-height: 48rpx;
+                    border: 1px solid #fff;
+                    background: rgba(0, 0, 0, .2);
+                    text-align: center;
+                }
+            }
+            .video-cover {
+                width: 302rpx;
+                height: 168rpx;
+                display: block;
+                background: rgba(0, 0, 0, .15);
+                border-radius: 8rpx;
+            }
+            .video-name {
+                width: 100%;
+                margin-top: 8px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                font-size: 24rpx;
+            }
+        }
+    }
+</style>

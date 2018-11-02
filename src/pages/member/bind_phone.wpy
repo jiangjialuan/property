@@ -1,0 +1,211 @@
+<template>
+    <view class="bind-phone-page">
+        <view class="input-text flex">
+            <input type="number" maxlength="11" placeholder="请输入手机号" value="{{mobile_phone}}" @focus="inputFocus" @input="mobileInput" />
+        </view>
+        <view class="input-text flex">
+            <input placeholder="请输入验证码" value="{{ticket_code}}" @focus="inputFocus" @input="codeInput" />
+            <view class="code-btn disable" wx:if="{{codeText}}"><text>{{codeText}}</text>s后重试</view>
+            <view class="code-btn {{codeEnable?'':'disable'}}" @tap="sendVerifyCode" wx:else>获取验证码</view>
+        </view>
+        <view class="error-tips">{{errorTips}}</view>
+        <view class="confirm-btn" @tap="submitForm">确认</view>
+    </view>
+</template>
+<script>
+    import wepy from "wepy";
+    import api from "../../common/api";
+    let startTime,
+        countdownTimeout;
+    export default class BindPhone extends wepy.page {
+        config = {
+            navigationBarTitleText: '绑定手机号'
+        };
+        data = {
+            mobile_phone: '',
+            ticket_code: '',
+            codeEnable: false,
+            verifyCodeCount: 60,
+            codeText: '',
+            errorTips: '',
+            id: ''
+        };
+        resetData() {
+            clearTimeout(countdownTimeout);
+            countdownTimeout = null;
+            this.mobile_phone = '';
+            this.ticket_code = '';
+            this.codeEnable = false;
+            this.verifyCodeCount = 60;
+            this.codeText = '';
+            this.errorTips = '';
+            this.id = '';
+            this.$apply();
+        }
+        methods = {
+            inputFocus() {
+                this.renderTips("");
+            },
+            mobileInput(e) {
+                this.mobile_phone = e.detail.value;
+                this.codeEnable = false;
+                this.$apply();
+                if (/^1\d{10}$/.test(this.mobile_phone)) {
+                    this.codeEnable = true;
+                    this.$apply();
+                }
+            },
+            codeInput(e) {
+                this.ticket_code = e.detail.value;
+                this.$apply();
+            },
+            // 发送验证码
+            sendVerifyCode() {
+                if (!this.codeEnable) return;
+                this.codeEnable = false;
+                this.$apply();
+                api.request({
+                    url: api.send_verification,
+                    data: {
+                        act: 7,
+                        mobile_phone: this.mobile_phone
+                    }
+                }).then(json => {
+                    startTime = Date.now();
+                    countdownTimeout = setTimeout(() => {
+                        this.fixed(this.verifyCodeCount * 1000);
+                    }, 0);
+                });
+            },
+            // 提交
+            submitForm() {
+                let tips = this.validateForm();
+                this.renderTips(tips);
+                if (tips) return;
+                api.request({
+                    url: `${api.videoUrl}/api/v1/join_member`,
+                    data: {
+                        act: 1,
+                        ticket_code: this.ticket_code,
+                        mobile_phone: this.mobile_phone,
+                        shop_id: api.shop_id
+                    },
+                    method: 'POST'
+                }).then(json => {
+                    api.showModal('手机绑定成功', () => {
+                        wx.navigateBack();
+                    });
+                }).catch(msg => {
+                    wx.showModal({
+                        title: '提示',
+                        content: msg,
+                        showCancel: false
+                    })
+                });
+            }
+        };
+        renderTips(msg) {
+            this.errorTips = msg;
+            this.$apply();
+        }
+        fixed(restTimestamp) {
+            let realTimeLeft = parseInt(Date.now() - startTime, 10),
+                offset = Date.now() - (startTime + realTimeLeft),
+                nextTime = 1000 - offset;
+            if (nextTime < 0) nextTime = 0;
+            if (restTimestamp - realTimeLeft < 1000 * 60 * 10) {
+                nextTime = 100;
+            }
+            countdownTimeout = setTimeout(() => {
+                this.fixed(restTimestamp);
+            }, nextTime);
+            if (realTimeLeft >= restTimestamp) {
+                startTime = Date.now();
+                realTimeLeft = 0;
+                clearTimeout(countdownTimeout);
+                countdownTimeout = null;
+                this.codeText = "";
+                this.codeEnable = true;
+                this.$apply();
+            } else {
+                this.codeText = this.format(restTimestamp - realTimeLeft);
+                this.$apply();
+            }
+        }
+        format(time) {
+            let hour = time < 0 ? 0 : parseInt(time / 1000 / 3600),
+                min = time < 0 ? 0 : parseInt((time / 1000 - hour * 3600) / 60),
+                sec = time < 0 ? 0 : parseInt(time / 1000 - hour * 3600 - min * 60);
+            return sec;
+        }
+        validateForm() {
+            if (!this.mobile_phone) {
+                return "手机号不能为空";
+            } else if (!/^1\d{10}$/.test(this.mobile_phone)) {
+                return "手机号不正确";
+            }
+            if (!this.ticket_code) {
+                return "验证码不能为空";
+            }
+            return "";
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                api.setBackgroundColor(json.frontColor, json.backgroundColor);
+            });
+        }
+        onLoad(options) {
+            this.resetData();
+            this.id = options.id || '';
+            this.$apply();
+        }
+    }
+</script>
+<style lang="less">
+    .bind-phone-page {
+        .input-text {
+            height: 100rpx;
+            padding: 0 22rpx;
+            background: #fff;
+            border-bottom: 1px solid #eee;
+            &.phone-input {
+                margin-top: 24rpx;
+            }
+            .label {
+                width: 120rpx;
+                font-size: 30rpx;
+                color: #3d3d3d;
+            }
+            input {
+                flex: 1;
+            }
+        }
+        .code-btn {
+            height: 80rpx;
+            line-height: 80rpx;
+            text-align: center;
+            color: #FF552A;
+            width: 200rpx;
+            font-size: 24rpx;
+            &.disable {
+                color: #666;
+            }
+        }
+        .error-tips {
+            margin-top: 12rpx;
+            color: #f00;
+            text-align: center;
+            height: 40rpx;
+            font-size: 24rpx;
+        }
+        .confirm-btn {
+            margin: 78rpx 75rpx 0;
+            height: 78rpx;
+            line-height: 78rpx;
+            text-align: center;
+            border-radius: 40rpx;
+            background: #FF552A;
+            color: #fff;
+        }
+    }
+</style>

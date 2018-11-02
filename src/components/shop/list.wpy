@@ -1,0 +1,100 @@
+<template>
+    <view class="goods-list page">
+        <view class="pop-title">
+            视频同款
+        </view>
+        <scroll-view class="list-content page-content" scroll-y="true" bindscrolltolower="loadMore" wx:if="{{!loading && goodsInfo.list.length > 0}}">
+            <block wx:for="{{goodsInfo.list}}" wx:key="index" wx:for-index="index" wx:for-item="item">
+                <view class="goods-item clearfix" @tap="showDetail('{{item.bid}}','{{item.type}}')">
+                    <view class="goods-img-box fl">
+                        <image class="goods-img" src="{{item.image}}" />
+                    </view>
+                    <view class="desc fl">
+                        <view class="goods-name">{{item.wname}}</view>
+                        <view class="goods-price" wx:if="{{item.type == 'goods'}}">¥{{item.current_price}}</view>
+                        <view class="goods-price" wx:else>服务费¥{{item.current_price}}起</view>
+                    </view>
+                    <view class="btn-group">
+                        <button class="buy-btn" @tap.stop="openSpec('{{item.bid}}','{{item.type}}')">加入购物车</button>
+                    </view>
+                </view>
+            </block>
+        </scroll-view>
+        <view class="loading" wx:if="{{loading}}">正在加载中...</view>
+        <view class="no-data" wx:if="{{goodsInfo.list.length == 0 && !loading}}"> (⊙ˍ⊙) 哎哟，这里空空如也…</view>
+    </view>
+</template>
+<script>
+import wepy from 'wepy';
+import store from '../../common/store';
+import api from '../../common/api';
+export default class List extends wepy.component {
+    data = {
+        goodsInfo: {
+            page: 1,
+            hasNext: true,
+            list: []
+        },
+        loading: false
+    };
+
+    // 获取商品信息
+    getGoodsInfo() {
+        let { goods_id } = api;
+        let id = wx.getStorageSync("uid"),
+            sdkInfo = wx.getStorageSync("sdk_zbinfo");
+        let data = {
+            id: id,
+            token: sdkInfo.token,
+            sign: sdkInfo.sign,
+            ts: sdkInfo.ts
+        };
+        return api.request({
+            url: `${api.goodsDetail}/${goods_id}`,
+            data: data
+        });
+    }
+
+    methods = {
+        openSpec(id, type) {
+            if (type == 'goods') {
+                api.goods_id = id;
+                this.getGoodsInfo().then(json => {
+                    store.set("currentGoodsData", json);
+                    let skus = json.skus;
+                    if (skus.length > 1) {
+                        this.show = true;
+                        this.isScroll = false;
+                        this.$apply();
+                        this.$emit('showShop', 'spec', 'cart');
+                        this.$emit('setVideoHeight', 'min');
+                    } else {
+                        this.$emit('confirm', json.wid, skus[0].sku_id, 1, 'cart');
+                    }
+                });
+            } else {
+                this.methods.showDetail(id, type);
+            }
+        },
+        loadMore() {
+            if (!this.goodsInfo.hasNext) return;
+            this.getGoodsList();
+        },
+        showDetail(bid, type) {
+            api.goods_id = bid;
+            api.navigateTo(`/pages/${type}/detail`);
+            this.$emit('hideShop');
+        }
+    };
+
+    show(data) {
+        this.goodsInfo.list = data || [];
+        this.goodsInfo.hasNext = false;
+        this.loading = false;
+        this.$apply();
+    }
+}
+
+</script>
+<style lang="less">
+</style>

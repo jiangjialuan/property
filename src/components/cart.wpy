@@ -1,0 +1,552 @@
+<template>
+    <view class="cart-page page" wx:if="{{!loading}}">
+        <import src="/templates/horizontal-goods-item.wxml" />
+        <view class="page-content" style="margin-bottom:{{cart_info.list.length ? '106rpx' : 0}}">
+            <view class="shop-item" wx:if="{{cart_info.list}}" wx:for="{{cart_info.list}}" wx:for-index="cartIndex" wx:for-item="cartItem" wx:key="cartIndex">
+                <view class="shop-name flex">
+                    <view class="check flex" @tap="checkItem('{{cartItem.buserid}}')">
+                        <image src="../images/mall/{{cartItem.checked?'checked':'uncheck'}}.png" />
+                    </view>
+                    <image src="../images/shop-name.png" class="shop-image" /> {{cartItem.shop_name}}
+                </view>
+                <view wx:for="{{cartItem.goods_list}}" wx:for-index="index" wx:for-item="item" wx:key="index" data-id="{{item.cart_id}}" style="right:{{item.right}}px" @touchstart="touchStart" @touchmove="touchMove" @touchend="touchEnd" class="goods-item flex {{item.invalid ? 'invalid' : ''}}">
+                    <view class="check flex" @tap="check('{{item.cart_id}}')">
+                        <image src="../images/mall/{{item.checked?'checked':'uncheck'}}.png" />
+                    </view>
+                    <view class="goods-image">
+                        <image src="{{item.image}}" mode="aspectFill" />
+                        <image src="../images/mall/invalid.png" class="invalid" wx:if="{{item.invalid}}" />
+                    </view>
+                    <view class="goods-info">
+                        <view class="goods-title">{{item.photo_name}}</view>
+                        <view class="goods-attr" wx:if="{{item.sku_attr != '类型:一米普通'}}">{{item.sku_attr}}</view>
+                        <view class="goods-price">¥{{item.current_price}}</view>
+                        <view class="amount-box flex" wx:if="{{!item.invalid}}">
+                            <button class="amount-btn flex {{item.num <= 1?'disabled':''}}" disabled="{{item.num <= 1}}" plain="text" data-id="{{item.cart_id}}" data-num="{{item.num}}" data-stock="{{item.stock}}" data-type="sub" @tap="handleNumBtnClick">
+                                <image src="../images/common/{{item.num <= 1?'minus_disable':'minus'}}.png" />
+                            </button>
+                            <input class="input-txt" type="number" value="{{item.num}}" disabled="{{item.invalid}}" data-id="{{item.cart_id}}" data-num="{{item.num}}" data-stock="{{item.stock}}" @blur="handleNumInputBlur" @input="handleNumInputChange" />
+                            <button class="amount-btn flex {{item.num >= item.stock?'disabled':''}}" disabled="{{item.num >= item.stock}}" plain="text" data-id="{{item.cart_id}}" data-num="{{item.num}}" data-stock="{{item.stock}}" data-type="sup" @tap="handleNumBtnClick">
+                                <image src="../images/common/{{item.num >= item.stock?'plus_disable':'plus'}}.png" />
+                            </button>
+                        </view>
+                    </view>
+                    <view class="delete-btn flex" @tap="delCart('{{item.cart_id}}')">删除</view>
+                </view>
+            </view>
+            <view class="empty-tips flex" wx:if="{{!cart_info.list.length}}">
+                <image src="../images/common/no_cart.png" />
+                <view class="msg">啥都木有~</view>
+                <navigator class="btn" url="/pages/mall/index" open-type="switchTab">
+                    去逛逛
+                </navigator>
+            </view>
+        </view>
+        <view class="recommand-goods" wx:if="{{!cart_info.list.length}}">
+            <view class="list-title flex" wx:if="{{recommand_goods.length}}">
+                <view class="title-name">猜你喜欢</view>
+            </view>
+            <view class="common-section" wx:if="{{recommand_goods.length}}">
+                <view class="flex goods-list" style="justify-content:space-between;flex-wrap: wrap;">
+                    <template is="horizontal-goods-item" data="{{item}}" wx:for="{{recommand_goods}}" wx:for-index="index" wx:for-item="item" wx:key="index"/>
+                </view>
+            </view>
+        </view>
+        <view class="summary-info flex" wx:else>
+            <view class="flex summary">
+                <view class="check flex check-all" @tap="checkAll">
+                    <image src="../images/mall/{{cart_info.checked?'checked':'uncheck'}}.png" />
+                    <view>全选</view>
+                </view>
+                <view class="count-box">
+                    <view class="total">合计：
+                        <text class="total-price">¥{{summary_info.total_money}}</text>
+                    </view>
+                    <text class="freight">不含运费</text>
+                </view>
+            </view>
+            <view class="settle-btn {{summary_info.total_count?'':'disabled'}}" @tap="confirmCart">
+                结算(共{{summary_info.total_count}}件)
+            </view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    export default class Cart extends wepy.component {
+        data = {
+            hide_btn: true,
+            loading: true,
+            cart_info: {
+                list: [],
+                page: 1,
+                checked: false,
+            },
+            recommand_goods: [],
+            summary_info: {
+                cart_ids: [],
+                total_money: 0.00,
+                total_count: 0
+            },
+            startX: 0
+        };
+        initData(cart_info, recommand_goods) {
+            cart_info.list.map(item => {
+                item.goods_list.map(goods => {
+                    goods.isDelShow = false;
+                    goods.right = 0;
+                    if (!goods.stock || goods.sell == 1) {
+                        goods.invalid = true;
+                    }
+                });
+            });
+            this.cart_info.list = cart_info.list;
+            recommand_goods.map(item=>{
+                item.hide_btn = true;
+            });
+            this.recommand_goods = recommand_goods;
+            this.renderCheckStatus(this.cart_info.list, this.cart_info);
+            this.renderCheckData();
+            this.loading = false;
+            this.$apply();
+        }
+        renderCheckStatus(list, item) {
+            let checkedItems = list.filter(item => item.checked);
+            item.checked = checkedItems.length == list.length;
+        }
+        renderCheckData() {
+            let {
+                list
+            } = this.cart_info,
+                cart_ids = [],
+                total_money = 0,
+                total_count = 0;
+            list.map(item => {
+                item.goods_list.map(goods => {
+                    if (goods.checked) {
+                        let num = parseInt(goods.num, 10),
+                            price = parseFloat(goods.current_price).toFixed(2);
+                        cart_ids.push(goods.cart_id);
+                        total_money += price * num;
+                        total_count += num;
+                    }
+                });
+            });
+            this.summary_info = {
+                cart_ids: cart_ids,
+                total_money: parseFloat(total_money).toFixed(2),
+                total_count: total_count
+            };
+            this.$apply();
+        }
+        methods = {
+            touchStart(e) {
+                if (e.touches.length == 1) {
+                    // 设置活动起始点
+                    this.startX = e.changedTouches[0].clientX;
+                }
+            },
+            touchMove(e) {
+                let {
+                    id
+                } = e.currentTarget.dataset,
+                    disX = parseInt(this.startX) - parseInt(e.changedTouches[0].clientX),
+                    currentItem;
+                this.cart_info.list.map(cart => {
+                    cart.goods_list.map(goods => {
+                        if (goods.cart_id == id) {
+                            currentItem = goods;
+                        }
+                    });
+                });
+                if (disX >= 0) {
+                    if (currentItem.isDelShow) return false;
+                    if (disX <= this.getDelBtnWidth()) {
+                        currentItem.right = disX;
+                    }
+                } else {
+                    if (currentItem.isDelShow) {
+                        if (Math.abs(disX) <= this.getDelBtnWidth()) {
+                            currentItem.right = this.getDelBtnWidth() + disX;
+                        }
+                    }
+                }
+            },
+            touchEnd(e) {
+                let {
+                    id
+                } = e.currentTarget.dataset,
+                    disX = parseInt(this.startX) - parseInt(e.changedTouches[0].clientX),
+                    currentItem;
+                this.cart_info.list.map(cart => {
+                    cart.goods_list.map(goods => {
+                        if (goods.cart_id == id) {
+                            currentItem = goods;
+                        }
+                    });
+                });;
+                if (disX >= 0) {
+                    if (!currentItem.isDelShow) {
+                        if (disX >= (this.getDelBtnWidth() / 2)) {
+                            currentItem.right = this.getDelBtnWidth();
+                            currentItem.isDelShow = true;
+                        } else {
+                            currentItem.right = 0;
+                            currentItem.isDelShow = false;
+                        }
+                    }
+                } else {
+                    if (currentItem.isDelShow) {
+                        if (Math.abs(disX) >= (this.getDelBtnWidth() / 2)) {
+                            currentItem.right = 0;
+                            currentItem.isDelShow = false;
+                        } else {
+                            currentItem.right = this.getDelBtnWidth();
+                            currentItem.isDelShow = true;
+                        }
+                    }
+                }
+            },
+            // 单个商品选择
+            check(cart_id) {
+                let {
+                    list
+                } = this.cart_info,
+                    currentItem;
+                list.map(item => {
+                    item.goods_list.map(goods => {
+                        if (goods.cart_id == cart_id) {
+                            currentItem = item;
+                            goods.checked = !goods.checked;
+                        }
+                    });
+                });
+                this.renderCheckStatus(currentItem.goods_list, currentItem);
+                this.renderCheckStatus(this.cart_info.list, this.cart_info);
+                this.renderCheckData();
+                this.$apply();
+            },
+            // 店铺物品选择
+            checkItem(buid) {
+                let {
+                    list
+                } = this.cart_info,
+                    currentItem = list.filter(item => item.buserid == buid)[0];
+                currentItem.checked = !currentItem.checked;
+                currentItem.goods_list.map(goods => {
+                    if (goods.invalid) return;
+                    goods.checked = currentItem.checked;
+                });
+                this.renderCheckStatus(list, this.cart_info);
+                this.renderCheckData();
+                this.$apply();
+            },
+            // 全选
+            checkAll() {
+                let {
+                    checked
+                } = this.cart_info, {
+                    list
+                } = this.cart_info;
+                list.map(item => {
+                    item.checked = !checked;
+                    item.goods_list.map(goods => {
+                        if (goods.invalid) return;
+                        goods.checked = !checked;
+                    });
+                });
+                this.cart_info.checked = !checked;
+                this.renderCheckData();
+                this.$apply();
+            },
+            
+            delCart(cart_id) {
+                this.$emit('delCart', cart_id);
+            },
+            confirmCart() {
+                let {
+                    cart_ids,
+                    total_count
+                } = this.summary_info;
+                if (!total_count) return;
+                this.$emit('confirmCart', cart_ids);
+            },
+            handleNumBtnClick(e) {
+                let {
+                    id,
+                    num,
+                    stock,
+                    type
+                } = e.currentTarget.dataset;
+                if (type == 'sub') {
+                    if (num > 1) {
+                        num -= 1;
+                    }
+                } else {
+                    num++;
+                    if (num >= stock) {
+                        num = stock;
+                    }
+                }
+                this.updateCart(id, num);
+            },
+            handleNumInputBlur(e) {
+                let {
+                    id,
+                    num,
+                    stock
+                } = e.currentTarget.dataset, {
+                    value
+                } = e.detail;
+                if (value >= stock) {
+                    value = stock;
+                }
+                this.updateCart(id, value);
+                this.$apply();
+            },
+            handleNumInputChange(e) {
+                let {
+                    value
+                } = e.detail
+                this.num = value;
+                this.$apply();
+                return value;
+            },
+            handleNumInputBlur(e) {
+                let {
+                    id,
+                    num,
+                    stock
+                } = e.currentTarget.dataset, {
+                    value
+                } = e.detail;
+                if (value >= stock) {
+                    value = stock;
+                }
+                value = value || 1;
+                if (value == num) return;
+                this.updateCart(id, value);
+            },
+            handleNumInputChange(e) {
+                let {
+                    id,
+                    num,
+                    stock
+                } = e.currentTarget.dataset, {
+                    value
+                } = e.detail;
+                if (value >= stock) {
+                    value = stock;
+                }
+                if (value == num) return;
+                this.$apply();
+                return value;
+            },
+        };
+        // 更新购物车数量
+        updateCart(id, num) {
+            this.$emit('updateCart', id, num);
+        }
+        // 获取按钮实际宽度
+        getDelBtnWidth() {
+            let btnWidth_rpx = 180; // 按钮的rpx宽度
+            let res = wx.getSystemInfoSync();
+            return (res.windowWidth / 750) * btnWidth_rpx;
+        };
+    }
+</script>
+<style lang="less">
+    .cart-page {
+        background: #f2f2f2;
+        .empty-tips {
+            flex-direction: column;
+            image {
+                width: 630rpx;
+                height: 160rpx;
+                margin: 100rpx auto 40rpx;
+            }
+            .msg {
+                font-size: 24rpx;
+                color: #999;
+                margin-bottom: 48rpx;
+            }
+            .btn {
+                width: 272rpx;
+                height: 60rpx;
+                line-height: 60rpx;
+                background: #FF552A;
+                color: #fff;
+                font-size: 30rpx;
+                border-radius: 4rpx;
+                text-align: center;
+                margin-bottom: 120rpx;
+            }
+        }
+        .recommand-goods {
+            background: #fff;
+            .list-title {
+                &:before,
+                &::after {
+                    content: '';
+                    width: 40rpx;
+                    height: 2rpx;
+                    background: #999;
+                    margin: 0 16rpx;
+                }
+            }
+            .goods-list {
+                padding: 0 30rpx 0;
+                .goods-item {
+                    margin-bottom: 30rpx;
+                }
+            }
+        }
+        .check {
+            padding-right: 22rpx;
+            height: 100%;
+            text-align: center;
+            &.check-all {
+                font-size: 22rpx;
+                color: #3d3d3d;
+                line-height: 32rpx;
+                flex-direction: column;
+            }
+            image {
+                width: 36rpx;
+                height: 36rpx;
+            }
+        }
+        .shop-item {
+            .goods-item {
+                &.invalid {
+                    &:before {
+                        content: '';
+                        background: rgba(255, 255, 255, .8);
+                        position: absolute;
+                        width: 100%;
+                        height: 100%;
+                    }
+                    .goods-image {
+                        &:before {
+                            content: '';
+                            background: rgba(255, 255, 255, .8);
+                            position: absolute;
+                            width: 100%;
+                            height: 100%;
+                        }
+                    }
+                }
+                .goods-image {
+                    position: relative;
+                    image {
+                        width: 100%;
+                        height: 100%;
+                        border-radius: 10rpx;
+                        &.invalid {
+                            position: absolute;
+                            top: 50%;
+                            left: 50%;
+                            width: 88rpx;
+                            height: 88rpx;
+                            transform: translate(-50%, -50%);
+                        }
+                    }
+                }
+                .goods-info {
+                    width: 440rpx;
+                }
+                .goods-operate {
+                    justify-content: space-between;
+                }
+                .delete-btn {
+                    position: absolute;
+                    width: 180rpx;
+                    height: 100%;
+                    font-size: 30rpx;
+                    color: #fff;
+                    top: 0;
+                    justify-content: center;
+                    background-color: #FF552A;
+                    right: -180rpx;
+                }
+            }
+        }
+        .amount-box {
+            border-radius: 5rpx;
+            height: 48rpx;
+            line-height: 48rpx;
+            border: 2rpx solid #999;
+            width: 188rpx;
+            text-align: center;
+            position: absolute;
+            bottom: 24rpx;
+            right: 24rpx;
+            .amount-btn {
+                width: 50rpx;
+                padding: 0;
+                margin: 0;
+                height: 50rpx;
+                border: none;
+                background: transparent;
+                image {
+                    width: 48rpx;
+                    height: 48rpx;
+                }
+            }
+            .input-txt {
+                flex: 1;
+                color: #3d3d3d;
+                font-size: 26rpx;
+            }
+        }
+        .summary-info {
+            height: 90rpx;
+            line-height: 90rpx;
+            padding: 0 .20rpx;
+            position: fixed;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 10;
+            padding-right: 0;
+            border-top: 1px solid #ccc;
+            background-color: #fff;
+            font-size: 28rpx;
+            justify-content: space-between;
+            .summary {
+                justify-content: space-between;
+                flex: 1;
+                padding: 0 20rpx;
+            }
+            .count-box {
+                line-height: 36rpx;
+                font-size: 30rpx;
+                color: #3d3d3d;
+                text-align: right;
+                .total-price {
+                    color: #FF552A;
+                }
+                .freight {
+                    font-size: 22rpx;
+                    color: #999;
+                }
+            }
+            .settle-btn {
+                width: 262rpx;
+                text-align: center;
+                background: #FF552A;
+                color: #fff;
+                border-radius: 0;
+                font-size: 30rpx;
+                height: 90rpx;
+                line-height: 90rpx;
+                &.disabled {
+                    background: #999;
+                }
+                &:after {
+                    border-radius: 0;
+                }
+            }
+        }
+    }
+</style>

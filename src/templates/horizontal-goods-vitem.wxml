@@ -1,0 +1,25 @@
+<template name="horizontal-goods-item">
+    <view class="goods-item"  bindtap="gotoDetail" data-item="{{item}}" wx:if="{{item.type == 'goods' || item.type == 'virtual_goods' || item.type == 'consult'}}">
+        <view class="item-image">
+            <image src="{{item.image}}" mode="aspectFill"  class="goods-image"/>
+            <view class="goods-mark" wx:if="{{item.is_groupon}}">
+                <image src="http://yimi.artqiyi.com/data/static/applet_images/groupon/mark.png" mode="aspectFit" />
+                <text>拼团</text>
+            </view>
+            <view class="goods-mark sold-out"   wx:if="{{(item.type == 'goods' || item.type == 'virtual_goods') && !item.stock}}">
+                <image src="../../images/sold-out.png" mode="aspectFit" />
+            </view>
+            <view class="commision" wx:if="{{item.expand_earning > '0.00'}}">赚 ¥{{item.expand_earning}}</view>
+        </view>
+        <view class="goods-desc">
+            <view class="goods-name text-over-ellipsis">{{item.wname}}</view>
+            <view class="goods-others goods-btn flex" wx:if="{{item.type == 'consult'}}" style="justify-content:center;color:#FF552A;font-size:24rpx;">
+                立即咨询
+            </view>
+            <view class="goods-others flex" wx:else>
+                <view class="goods-price flex">¥{{item.current_price}}<text class="goods-sale" space="ensp"> 销量{{item.sale_num}}件</text></view>
+                <image src="/images/coupon/coupon-icon.png" mode="aspectFit" class="coupon-icon" wx:if="{{item.has_coupon}}"/>
+            </view>
+        </view>
+    </view>
+</template>

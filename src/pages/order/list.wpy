@@ -1,0 +1,366 @@
+<template>
+    <view class="order-page page order-list-page" wx:if="{{!loading}}">
+        <view class="tabs">
+            <block wx:if="{{type=='refunding'||type=='refunded'}}">
+                <view @tap="changeTab('refunding')" class="tab-item {{type=='refunding'?'active': ''}}">退款中</view>
+                <view @tap="changeTab('refunded')" class="tab-item {{type=='refunded'?'active': ''}}">已退款</view>
+            </block>
+            <block wx:else>
+                <view @tap="changeTab('all')" class="tab-item {{type=='all'?'active': ''}}">全部</view>
+                <view @tap="changeTab('pay_order')" class="tab-item {{type=='pay_order'?'active': ''}}">待付款</view>
+                <view @tap="changeTab('pre_produce')" class="tab-item {{type=='pre_produce'?'active': ''}}">已付款</view>
+                <view @tap="changeTab('receive')" class="tab-item {{type=='receive'?'active': ''}}">待确认</view>
+                <view @tap="changeTab('completed')" class="tab-item {{type=='completed'?'active': ''}}">已完成</view>
+            </block>
+        </view>
+        <view class="order-list">
+            <view class="shop-item order-item" wx:for="{{order_info.list}}" wx:key="index">
+                <view class="shop-name flex">
+                    <image src="../../images/shop-name.png" class="shop-image" />{{item.buser_name}}
+                </view>
+                <view @tap="navigateTo('/pages/order/order_detail_{{item.type}}?order_id={{item.order_id}}')">
+                    <import src="/templates/order_goods_item.wxml" />
+                    <template is="goods-item" data="{{item:goods,is_groupon:item.is_groupon}}" wx:for="{{item.goods_list}}" wx:key="goods_index" wx:for-index="goods_index" wx:for-item="goods" />
+                </view>
+                <view class="count">
+                    共 {{item.num}} 件商品，
+                    <text>总计</text>：¥{{item.order_money}}
+                    <text wx:if="{{item.type=='goods'}}">（含运费：¥{{item.shipping || '0.00'}}）</text>
+                </view>
+                <view class="operate-panel section">
+                    <import src="/templates/order_operate_panel.wxml" />
+                    <template is="order_operate_panel" data="{{item}}" />
+                </view>
+            </view>
+            <view class="no-data" wx:if="{{order_info.list.length == 0 && !order_info.loading}}"> (⊙ˍ⊙) 哎哟，这里空空如也…</view>
+            <view class="loading" wx:if="{{order_info.has_next || order_info.loading}}">正在加载中...</view>
+            <view class="no-data" wx:if="{{order_info.list.length > 0 && !order_info.has_next}}">没有更多数据了</view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    import orderService from '../../common/orderService';
+    export default class List extends wepy.page {
+        config = {
+            'navigationBarTitleText': '我的订单'
+        };
+        data = {
+            order_info: {
+                page: 1,
+                has_next: true,
+                list: [],
+                loading: false
+            },
+            type: store.get('order_type') || 'all',
+            loading: true
+        };
+        onReachBottom() {
+            if (!this.order_info.has_next) return;
+            this.getData();
+        }
+        // 获取商品信息
+        getGoodsInfo(goods_id) {
+            let sdkInfo = wx.getStorageSync("sdk_zbinfo");
+            api.request({
+                url: `${api.goodsDetail}/${goods_id}`,
+                data: {
+                    id: wx.getStorageSync("uid"),
+                    token: sdkInfo.token,
+                    sign: sdkInfo.sign,
+                    ts: sdkInfo.ts
+                }
+            }).then(json => {
+                store.set("currentGoodsData", json);
+                api.navigateTo('../subscribe/time');
+            }).catch(msg => {
+                api.showModal(msg);
+            })
+        }
+        resetData() {
+            this.order_info = {
+                page: 1,
+                has_next: true,
+                list: [],
+                loading: false
+            };
+            this.loading = true;
+            this.$apply();
+        }
+        // 获取订单列表
+        getData() {
+            if (this.order_info.loading) return;
+            this.order_info.loading = true;
+            this.$apply();
+            let uid = wx.getStorageSync('uid'),
+                sdkInfo = wx.getStorageSync('sdk_zbinfo');
+            let data = {
+                id: uid,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts,
+                act: this.type,
+                p: this.order_info.page
+            };
+            api.request({
+                url: api.order_list,
+                data: data
+            }).then(json => {
+                this.order_info.list = this.order_info.list.concat(json.list);
+                this.order_info.has_next = this.order_info.page < parseInt(json.total_page, 10);
+                this.order_info.page++;
+                this.order_info.loading = false;
+                this.loading = false;
+                api.loading.hide();
+                this.$apply();
+            });
+        }
+        methods = {
+            gotoRefundDetail(e) {
+                let {
+                    order_id
+                } = e.currentTarget.dataset.item;
+                api.navigateTo(`/pages/order/refund_detail?order_id=${order_id}`)
+            },
+            gotoResultPage(e) {
+                let {
+                    order_id,
+                    type
+                } = e.currentTarget.dataset.item,
+                    url = `/pages/goods/result?order_id=${order_id}`;
+                if (type == 'service_packages') {
+                    url = `/pages/service_packages/result?order_id=${order_id}`;
+                }
+                api.navigateTo(url);
+            },
+            gotoDelivery(e) {
+                let {
+                    logistics_id
+                } = e.currentTarget.dataset.item;
+                api.navigateTo(`/pages/order/delivery?logistics_id=${logistics_id}`);
+            },
+            gotoComment(e) {
+                let {
+                    goods_list
+                } = e.currentTarget.dataset.item;
+                api.navigateTo(`/pages/subscribe/comment?bid=${goods_list[0].bid}&name=${goods_list[0].goods_name}&img=${goods_list[0].img}`);
+            },
+            navigateTo(url) {
+                api.navigateTo(url);
+            },
+            changeTime(e) {
+                let {
+                    goods_list,
+                    order_id
+                } = e.currentTarget.dataset.item;
+                store.set('order_id', order_id);
+                this.getGoodsInfo(goods_list[0].bid);
+            },
+            changeTab(type) {
+                if (this.type == type) return;
+                this.type = type;
+                this.order_info.page = 1;
+                this.order_info.list = [];
+                this.getData();
+                this.$apply();
+            },
+            payOrder(e) {
+                let {
+                    order_id,
+                    sn,
+                    f_order_id,
+                    is_groupon
+                } = e.currentTarget.dataset.item;
+                orderService.payOrder(order_id, sn, 'order').then(json => {
+                    let url = `/pages/main/pay_success?order_id=${f_order_id}`;
+                    if (is_groupon) {
+                        url = `/pages/groupon/pay_success?order_id=${f_order_id}`;
+                    }
+                    wx.redirectTo({
+                        url: url
+                    });
+                }).catch(msg => {
+                    api.loading.hide();
+                    if (!msg) return;
+                    api.showModal(msg);
+                });
+            },
+            deleteOrder(e) {
+                let {
+                    order_id
+                } = e.currentTarget.dataset.item;
+                orderService.deleteOrder(order_id)
+                    .then(() => {
+                        this.order_info.list.map((item, i) => {
+                            if (order_id == item.order_id) {
+                                this.order_info.list.splice(i, 1)
+                            }
+                        });
+                        this.$apply();
+                    });
+            },
+            confirmOrder(e) {
+                let {
+                    order_id,
+                    type
+                } = e.currentTarget.dataset.item;
+                orderService.confirmOrder(order_id, type)
+                    .then(() => {
+                        this.order_info.list.map((item, i) => {
+                            if (order_id == item.order_id) {
+                                this.order_info.list.splice(i, 1)
+                            }
+                        });
+                        this.$apply();
+                    });
+            },
+            cancelOrder(e) {
+                let {
+                    order_id
+                } = e.currentTarget.dataset.item;
+                orderService.cancelOrder(order_id)
+                    .then(() => {
+                        this.order_info.list.map(item => {
+                            if (order_id == item.order_id) {
+                                item.status = 'cancel';
+                                item.state = '已取消';
+                            }
+                        });
+                        this.$apply();
+                    });
+            }
+        };
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+            let orderListRefresh = store.get('orderListRefresh');
+            if (orderListRefresh) {
+                let order_id = orderListRefresh.split("_")[0],
+                    type = orderListRefresh.split("_")[1];
+                if (type == 'cancel') {
+                    this.order_info.list.map(item => {
+                        if (order_id == item.order_id) {
+                            item.status = 'cancel';
+                            item.state = '已取消';
+                        }
+                    });
+                } else if (type == 'pay') {
+                    this.resetData();
+                    this.getData();
+                } else if (type == 'changeTime') {
+                    let time_info = store.get('time_info');
+                    this.order_info.list.map((item, i) => {
+                        if (order_id == item.order_id) {
+                            item.goods_list.map(goods => {
+                                goods.subscribe_time = `${time_info.datetime} (${time_info.dateweek}) ${time_info.hour}`;
+                            });
+                        }
+                    });
+                } else {
+                    this.order_info.list.map((item, i) => {
+                        if (order_id == item.order_id) {
+                            this.order_info.list.splice(i, 1)
+                        }
+                    });
+                }
+                store.set('orderListRefresh', '');
+                this.$apply();
+            } else if (api.lastPage == 'time') {
+                let time_info = store.get('time_info'),
+                    order_id = store.get('order_id'),
+                    subscribe_time = time_info.datetime + ' ' + time_info.hour;
+                api.request({
+                    url: api.edit_subscribe,
+                    data: {
+                        order_id: order_id,
+                        subscribe_time: subscribe_time
+                    }
+                }).then(json => {
+                    this.order_info.list.map(item => {
+                        if (order_id == item.order_id) {
+                            item.subscribe_time = `${time_info.datetime} (${time_info.dateweek}) ${time_info.hour}`;
+                            item.goods_list.map(goods => {
+                                goods.subscribe_time = `${time_info.datetime} (${time_info.dateweek}) ${time_info.hour}`;
+                            });
+                        }
+                    });
+                    this.$apply();
+                });
+            }
+            api.lastPage = '';
+        }
+        onLoad(options) {
+            api.loading.show();
+            this.resetData();
+            wx.hideShareMenu();
+            api.checkLogin().then(json => {
+                api.shop_id = options.shop_id || parseInt(api.shop_id);
+                this.userInfo = json;
+                this.type = options.type || 'all';
+                this.$apply();
+                let uid = wx.getStorageSync('uid'),
+                    sdkInfo = wx.getStorageSync('sdk_zbinfo');
+                if (!sdkInfo) {
+                    api.request({
+                        url: api.get_sdk_zbinfo,
+                        data: {
+                            uid: uid
+                        }
+                    }).then(json => {
+                        wx.setStorageSync('sdk_zbinfo', json);
+                        this.getData();
+                    });
+                } else {
+                    this.getData();
+                }
+            });
+        }
+        onShareAppMessage(res) {
+            let uid = api.userInfo.is_agency ? api.userInfo.uid : api.from_uid ? api.from_uid : api.userInfo.uid;
+            let {
+                id
+            } = res.target.dataset,
+                currentItem = this.order_info.list.filter(item => id == item.order_id)[0],
+                goodsInfo = currentItem.goods_list[0];
+            let title = `快来和我一起拼团！${goodsInfo.current_price}元购买【${goodsInfo.goods_name}】`,
+                path = `/pages/groupon/invite?from_uid=${uid}&order_id=${currentItem.f_order_id}&shop_id=${api.shop_id}`,
+                imageUrl = goodsInfo.img;
+            console.log(path, 'path');
+            return {
+                title: title,
+                path: path,
+                imageUrl: imageUrl,
+                success: res => {
+                    wx.showToast({
+                        title: '转发成功！'
+                    });
+                },
+                fail: res => {
+                    let msg = '转发失败！';
+                    if (/cancel/ig.test(res.errorMsg) > -1) {
+                        msg = '转发取消！'
+                    }
+                    wx.showToast({
+                        image: '../../images/fail.png',
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>
+<style lang="less">
+    @import 'order.less';
+    .order-list-page {
+        .operate-panel {
+            margin-top: 0;
+        }
+    }
+</style>

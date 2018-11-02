@@ -1,0 +1,314 @@
+<template>
+    <view class="order-page order-detail-page" wx:if="{{!loading}}">
+        <import src="/templates/order_addr_info.wxml" />
+        <template is="addr-info" data="{{info}}" />
+        <view class="pickup-info" wx:if="{{info.pickup_info.pickup_phone}}">
+            <view class="column flex" @tap="openLocation">地址
+                <view class="content flex">{{info.pickup_info.pickup_address}}<image class="link" src="/images/more-link.png" /></view>
+            </view>
+            <view class="column flex">营业时间
+                <view class="content flex">{{info.pickup_info.work_time}}</view>
+            </view>
+            <view class="column flex" @tap="makePhoneCall">电话
+                <view class="content flex">{{info.pickup_info.pickup_phone}}<image class="link" src="/images/more-link.png" /></view>
+            </view>
+        </view>
+        <view class="order-item shop-item">
+            <view class="shop-name flex">
+                <image src="../../images/shop-name.png" class="shop-image" />{{info.order_info.buser_name}}
+            </view>
+            <view class="section">
+                <import src="/templates/order_goods_item.wxml" />
+                <template is="goods-item" data="{{item,is_groupon:info.order_info.is_groupon}}" wx:for="{{info.order_info.goods_list}}" wx:key="index" />
+                <view class="count">
+                    共 {{info.order_info.num}} 件商品，
+                    <text>总计：</text>¥{{info.order_info.order_money}} (含运费：¥{{info.order_info.shipping}})
+                </view>
+                <view class="section-item flex" wx:if="{{info.order_info.is_goods == 1 && info.order_info.type=='goods' && info.user_info.remark}}">
+                    <text class="label">买家留言</text>
+                    <text class="flex-item">{{info.user_info.remark}}</text>
+                </view>
+            </view>
+        </view>
+        <import src="/templates/order_summary.wxml" />
+        <template is="order_summary" data="{{item:info.order_info}}" />
+        <view class="fixed-footer operate-panel section">
+            <import src="/templates/order_operate_panel.wxml" />
+            <template is="order_operate_panel" data="{{item:info.order_info}}" />
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    import orderService from '../../common/orderService';
+    let startTime = Date.now(),
+        countdownTimeout;
+    export default class Detail extends wepy.page {
+        fixed(restTimestamp, callback1, callback2) {
+            let realTimeLeft = parseInt(Date.now() - startTime, 10),
+                offset = Date.now() - (startTime + realTimeLeft),
+                nextTime = 1000 - offset;
+            if (nextTime < 0) nextTime = 0;
+            if (restTimestamp - realTimeLeft < 1000 * 60 * 10) {
+                nextTime = 100;
+            }
+            countdownTimeout = setTimeout(() => {
+                this.fixed(restTimestamp, callback1, callback2);
+            }, nextTime);
+            if (realTimeLeft >= restTimestamp) {
+                realTimeLeft = 0;
+                callback1 && callback1();
+            } else {
+                callback2 && callback2(restTimestamp - realTimeLeft);
+            }
+        }
+        data = {
+            info: {},
+            order_id: '',
+            loading: true
+        };
+        resetData() {
+            this.info = {};
+            this.loading = true;
+            this.$apply();
+        }
+        methods = {
+            openLocation() {
+                let {
+                    longitude,
+                    latitude
+                } = this.info.pickup_info;
+                wx.openLocation({
+                    latitude: latitude,
+                    longitude: longitude
+                });
+            },
+            makePhoneCall() {
+                wx.makePhoneCall({
+                    phoneNumber: this.info.pickup_info.pickup_phone
+                });
+            },
+            gotoRefund(e) {
+                let {
+                    order_id
+                } = e.currentTarget.dataset.item;
+                api.navigateTo(`/pages/order/refund?order_id=${order_id}`);
+            },
+            gotoRefundDetail(e) {
+                let {
+                    order_id
+                } = e.currentTarget.dataset.item;
+                api.navigateTo(`/pages/order/refund_detail?order_id=${order_id}`);
+            },
+            gotoResultPage(e) {
+                let {
+                    order_id,
+                    type
+                } = e.currentTarget.dataset.item,
+                    url = `/pages/goods/result?order_id=${order_id}`;
+                if (type == 'service_packages') {
+                    url = `/pages/service_packages/result?order_id=${order_id}`;
+                }
+                api.navigateTo(url);
+            },
+            gotoDelivery(e) {
+                let {
+                    logistics_id
+                } = e.currentTarget.dataset.item;
+                api.navigateTo(`/pages/order/delivery?logistics_id=${logistics_id}`);
+            },
+            navigateTo(url) {
+                api.navigateTo(url);
+            },
+            copyOrderCode(e) {
+                let {
+                    sn
+                } = e.currentTarget.dataset.item;
+                orderService.copyOrderCode(sn);
+            },
+            payOrder(e) {
+                let {
+                    order_id,
+                    sn,
+                    f_order_id,
+                    is_groupon
+                } = e.currentTarget.dataset.item;
+                orderService.payOrder(order_id, sn, 'order').then(json => {
+                    let url = `/pages/main/pay_success?order_id=${f_order_id}`;
+                    if (is_groupon) {
+                        url = `/pages/groupon/pay_success?order_id=${f_order_id}`;
+                    }
+                    store.set('orderListRefresh', `${order_id}_pay`);
+                    wx.redirectTo({
+                        url: url
+                    });
+                }).catch(msg => {
+                    api.loading.hide();
+                    if (!msg) return;
+                    api.showModal(msg);
+                });
+            },
+            deleteOrder(e) {
+                let {
+                    order_id
+                } = e.currentTarget.dataset.item;
+                orderService.deleteOrder(order_id)
+                    .then(() => {
+                        store.set('orderListRefresh', `${order_id}_delete`);
+                        wx.navigateBack();
+                    });
+            },
+            confirmOrder(e) {
+                let {
+                    order_id,
+                    type
+                } = e.currentTarget.dataset.item;
+                orderService.confirmOrder(order_id, type)
+                    .then(() => {
+                        this.info.order_info.state = '已完成';
+                        this.info.order_info.status = 'completed';
+                        api.setTitle(this.info.order_info.state);
+                        this.$apply();
+                        store.set('orderListRefresh', `${order_id}_confirm`);
+                    });
+            },
+            cancelOrder(e) {
+                let {
+                    order_id
+                } = e.currentTarget.dataset.item;
+                orderService.cancelOrder(order_id)
+                    .then(() => {
+                        this.info.order_info.state = '已取消';
+                        this.info.order_info.status = 'cancel';
+                        this.$apply();
+                        api.setTitle(this.info.order_info.state);
+                        store.set('orderListRefresh', `${order_id}_cancel`);
+                    });
+            }
+        }
+        // 获取订单信息
+        getData() {
+            api.request({
+                url: api.order_detail,
+                data: {
+                    order_id: this.order_id
+                }
+            }).then(json => {
+                json.order_info.is_fixed = true;
+                let {
+                    remain_time
+                } = json.order_info;
+                this.info = json;
+                api.setTitle(this.info.order_info.state);
+                api.loading.hide();
+                this.loading = false;
+                this.$apply();
+                if (json.order_info.remain_time > 0) {
+                    countdownTimeout = setTimeout(() => {
+                        this.fixed(remain_time * 1000, () => {
+                            startTime = Date.now();
+                            clearTimeout(countdownTimeout);
+                            countdownTimeout = null;
+                            this.getData();
+                        }, (time) => {
+                            console.log(this.info.order_info.time, 'this.info.order_info.time', countdownTimeout);
+                            this.info.order_info.time = orderService.format(time);
+                            this.$apply();
+                        });
+                    }, 0);
+                }
+            });
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+                api.setTitle(title);
+            });
+            api.checkLogin().then(json => {
+                this.getData();
+            });
+        }
+        onLoad(options) {
+            this.resetData();
+            this.order_id = options.order_id;
+            wx.hideShareMenu();
+            api.loading.show();
+        }
+        onUnload() {
+            console.log('onUnload', countdownTimeout);
+            startTime = Date.now();
+            clearTimeout(countdownTimeout);
+            countdownTimeout = '';
+        }
+        onShareAppMessage(res) {
+            let uid = api.userInfo.is_agency ? api.userInfo.uid : api.from_uid ? api.from_uid : api.userInfo.uid;
+            let {
+                id
+            } = res.target.dataset,
+                currentItem = this.info.order_info,
+                goodsInfo = currentItem.goods_list[0];
+            let title = `快来和我一起拼团！${goodsInfo.price}元购买【${goodsInfo.goods_name}】`,
+                path = `/pages/groupon/invite?from_uid=${uid}&order_id=${currentItem.f_order_id}&shop_id=${api.shop_id}`,
+                imageUrl = goodsInfo.img;
+            console.log(path, 'path');
+            return {
+                title: title,
+                path: path,
+                imageUrl: imageUrl,
+                success: res => {
+                    wx.showToast({
+                        title: '转发成功！'
+                    });
+                },
+                fail: res => {
+                    let msg = '转发失败！';
+                    if (/cancel/ig.test(res.errorMsg) > -1) {
+                        msg = '转发取消！'
+                    }
+                    wx.showToast({
+                        image: '../../images/fail.png',
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>
+<style lang="less">
+    @import 'order.less';
+    .order-detail-page {
+        .pickup-info {
+            background: #fff;
+            margin-top: 20rpx;
+            .column {
+                padding: 30rpx;
+                font-size: 28rpx;
+                line-height: 30rpx;
+                word-break: break-all;
+                align-items: flex-start;
+                border-bottom:1rpx solid #f2f2f2;
+                &:last-child {
+                    border-bottom: none;
+                }
+                .content {
+                    flex: 1;
+                    margin-left: 30rpx;
+                    justify-content: flex-end;
+                    .link {
+                        width: 15rpx;
+                        height: 25rpx;
+                        margin-left: 20rpx;
+                        min-width: 15rpx;
+                    }
+                }
+            }
+        }
+    }
+</style>

@@ -1,0 +1,128 @@
+<template>
+    <view class="delivery-info-page" wx:if="{{!loading}}">
+        <view class="delivery-info" wx:if="{{logisticsInfo.logistics_info && logisticsInfo.logistics_info.length > 0}}">
+            <view class="delivery-detail">
+                <view>物流公司： {{logisticsInfo.shipping_name}} </view>
+                <view>运单号： {{logisticsInfo.shipping_sn}} </view>
+            </view>
+            <view class="delivery-progress">
+                <block wx:for="{{logisticsInfo.logistics_info}}" wx:key="index" wx:for-index="index" wx:for-item="item">
+                    <view class="delivery-item">
+                        <view class="delivery-context">{{item.context}}</view>
+                        <view class="delivery-time"> {{item.time}} </view> <i class="status"></i>
+                        <view class="split-bar"></view>
+                    </view>
+                </block>
+            </view>
+        </view>
+        <view class="no-data" wx:else>
+            暂无物流信息
+        </view>
+    </view>
+</template>
+<script>
+import wepy from 'wepy';
+import api from '../../common/api';
+export default class Delivery extends wepy.page {
+    config = {
+        'navigationBarTitleText': '物流信息'
+    };
+
+    data = {
+        logisticsInfo: {},
+        loading: true
+    };
+
+    onLoad(option) {
+        api.loading.show();
+        api.checkLogin().then(json => {
+            this.userInfo = json;
+            api.request({
+                url: api.logistics,
+                data: {
+                    logistics_id: option.logistics_id
+                }
+            }).then(res => {
+                this.logisticsInfo = res;
+                this.loading = false;
+                api.loading.hide();
+                this.$apply();
+            });
+        });
+    }
+
+    onShow() {
+        api.getBackgroundColor().then(json => {
+            let { frontColor, backgroundColor } = json;
+            api.setBackgroundColor(frontColor, backgroundColor);
+        });
+    }
+
+}
+
+</script>
+<style lang="less">
+.delivery-info-page {
+    .delivery-detail {
+        padding: 28rpx;
+        background: #fff;
+        border-top: 1px solid #eee;
+        text-align: left;
+    }
+    .delivery-progress {
+        margin-top: 20rpx;
+        background: #fff;
+        padding: 0 28rpx;
+        position: relative;
+        text-align: left;
+        .empty-msg {
+            margin-top: 20rpx;
+        }
+        .split-bar {
+            width: 1rpx;
+            bottom: 0;
+            position: absolute;
+            left: -20rpx;
+            top: -2rpx;
+            background: #a9a9a9;
+        }
+        .delivery-item {
+            color: #aaa;
+            padding: 32rpx 0;
+            border-bottom: 2rpx solid #d2d2d2;
+            margin-left: 28rpx;
+            position: relative;
+            .status {
+                position: absolute;
+                width: 16rpx;
+                height: 16rpx;
+                background: #a9a9a9;
+                border-radius: 50%;
+                top: 45rpx;
+                left: -25rpx;
+                z-index: 1;
+            }
+            &:last-child {
+                border-bottom: none;
+            }
+            &:first-child {
+                .delivery-context {
+                    color: #00c800;
+                }
+                .status {
+                    background: #00c800;
+                    width: 20rpx;
+                    height: 20rpx;
+                    left: -28rpx;
+                    box-shadow: 0 0 15rpx #0f0;
+                    top: 42rpx;
+                }
+                .split-bar {
+                    top: 45rpx;
+                }
+            }
+        }
+    }
+}
+
+</style>

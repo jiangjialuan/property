@@ -1,0 +1,195 @@
+<template>
+    <view class="common-section index-page">
+        <import src="/templates/vertical-goods-item.wxml" />
+        <view class="goods-list vertical-list">
+            <template is="vertical-goods-item" data="{{item}}" wx:for="{{goods_info.list}}" wx:key="index"/>
+            <view class="loading" wx:if="{{goods_info.hasNext || loading}}">正在加载中...</view>
+            <view class="no-data" wx:if="{{goods_info.list.length > 0 && !goods_info.hasNext}}">
+                没有更多拼团商品了～
+                <view class="btn-mall" @tap="gotoMall">去逛逛</view>
+            </view>
+            <view class="no-data" wx:if="{{goods_info.list.length == 0 && !goods_info.hasNext}}">
+                <image src="../../images/mall/no-data.png" mode="aspectFill" />
+                <view>暂时木有商品~</view>
+            </view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    export default class Index extends wepy.page {
+        config = {
+            'enablePullDownRefresh': true,
+            'navigationBarTitleText': '拼团列表',
+        };
+        data = {
+            goods_info: {
+                list: [],
+                page: 1,
+                hasNext: true
+            },
+            loading: false,
+            userInfo: {}
+        };
+        methods = {
+            gotoDetail(e) {
+                let {
+                    item
+                } = e.currentTarget.dataset;
+                api.navigateTo(`/pages/${item.is_groupon?'groupon':item.type}/detail?goods_id=${item.bid}`);
+            },
+            gotoMall() {
+                wx.switchTab({
+                    url: `/pages/mall/index`
+                })
+            }
+        };
+        resetData() {
+            this.goods_info = {
+                list: [],
+                page: 1,
+                hasNext: true
+            };
+            this.loading = false;
+            this.userInfo = {};
+            this.$apply();
+        }
+        onReachBottom() {
+            if (!this.goods_info.hasNext) return;
+            this.getGoodsList();
+        }
+        onPullDownRefresh() {
+            this.goods_info = {
+                list: [],
+                page: 1,
+                hasNext: true
+            };
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                this.getGoodsList(() => {
+                    wx.stopPullDownRefresh();
+                });
+            });
+        }
+        getGoodsList() {
+            if (this.loading) return;
+            this.loading = true;
+            this.$apply();
+            let uid = wx.getStorageSync('uid'),
+                sdkInfo = wx.getStorageSync('sdk_zbinfo');
+            let data = {
+                page: this.goods_info.page,
+                id: uid,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts,
+                zb_id: api.buid,
+                group_id: this.group_id,
+                version: api.version,
+                shop_id: api.shop_id
+            };
+            api.request({
+                url: api.groupon_goods,
+                data: data
+            }).then(json => {
+                json.list.map(item=>{
+                    item.save_price = Math.round((item.price - item.current_price) * 100) / 100;
+                });
+                this.goods_info.list = this.goods_info.list.concat(json.list);
+                this.goods_info.hasNext = json.has_next;
+                this.goods_info.page++;
+                this.loading = false;
+                this.$apply();
+                api.loading.hide();
+            }).catch(() => {
+                this.loading = false;
+                this.$apply();
+            });
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+        }
+        onLoad(options) {
+            api.loading.show();
+            this.resetData();
+            api.checkLogin().then(json => {
+                api.from_uid = options.from_uid || api.from_uid;
+                api.shop_id = options.shop_id || parseInt(api.shop_id);
+                this.userInfo = json;
+                this.$apply();
+                let uid = wx.getStorageSync('uid'),
+                    sdkInfo = wx.getStorageSync('sdk_zbinfo');
+                if (!sdkInfo) {
+                    api.request({
+                        url: api.get_sdk_zbinfo,
+                        data: {
+                            uid: uid
+                        }
+                    }).then(json => {
+                        wx.setStorageSync('sdk_zbinfo', json);
+                        this.getGoodsList();
+                    });
+                } else {
+                    this.getGoodsList();
+                }
+            });
+        }
+        onShareAppMessage(res) {
+            let uid = api.userInfo.is_agency ? api.userInfo.uid : api.from_uid ? api.from_uid : api.userInfo.uid;
+            console.log(`/pages/groupon/index?from_uid=${uid}&shop_id=${api.shop_id}`);
+            return {
+                title: '拼团列表',
+                path: `/pages/groupon/index?from_uid=${uid}&shop_id=${api.shop_id}`,
+                success: res => {
+                    wx.showToast({
+                        title: '转发成功！'
+                    });
+                },
+                fail: res => {
+                    let msg = '转发失败！';
+                    if (/cancel/ig.test(res.errorMsg) > -1) {
+                        msg = '转发取消！'
+                    }
+                    wx.showToast({
+                        image: '../../images/fail.png',
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>
+<style lang="less">
+    @import "./common.less";
+    .index-page {
+        .goods-list {
+            background: #f2f2f2;
+        }
+        background: #f2f2f2;
+        .no-data {
+            image {
+                width: 200rpx;
+                height: 165rpx;
+                margin-top: 120rpx;
+            }
+        }
+        .btn-mall {
+            margin: 0 60rpx 40rpx;
+            height: 80rpx;
+            line-height: 80rpx;
+            text-align: center;
+            font-size: 30rpx;
+            color: #ff552a;
+            background: #fff;
+        }
+    }
+</style>

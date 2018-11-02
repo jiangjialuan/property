@@ -1,0 +1,31 @@
+<template name="goods_detail">
+    <swiper class="carousel" indicator-dots="{{goods_info.images.length > 1}}">
+        <swiper-item wx:for="{{goods_info.images}}" wx:key="index">
+            <image class="goods-img" src="{{item}}" mode="aspectFill" />
+        </swiper-item>
+    </swiper>
+    <view class="goods-info">
+        <view class="sale-info flex" wx:if="{{goods_info.type != 'consult'}}">
+            <view>销量<text>{{goods_info.sale_num}}笔</text></view>
+            <view wx:if="{{goods_info.type == 'goods'}}">快递<text>￥{{goods_info.shipping}}</text></view>
+        </view>
+        <view class="goods-simple-info">
+            <view class="goods-name text-over-ellipsis">{{goods_info.wname}}</view>
+            <view class="goods-price flex" wx:if="{{goods_info.type != 'consult' && !goods_info.discount}}">
+                <block wx:if="{{goods_info.is_groupon == '1'}}">
+                    ¥ <view class="current-price">{{goods_info.current_price}}</view>
+                    <view class="original-price">¥{{goods_info.price}}</view>
+                    <view class="group-tips">拼团立省{{goods_info.save_price}}元</view>
+                </block>
+                <block wx:else>
+                    ¥ <view class="current-price">{{goods_info.current_price}}</view>
+                    <view class="expand-price" wx:if="{{goods_info.expand_price}}">合伙人价：¥{{goods_info.expand_price}}</view>
+                    <view class="original-price" wx:if="{{goods_info.type == 'service_packages'}}">门市价：¥{{goods_info.original_price}}</view>
+                </block>
+            </view>
+            <view class="share-btn flex" bindtap="showBottomMenu">
+                <image class='icon-share' src="../../images/mall/share.png" />
+            </view>
+        </view>
+    </view>
+</template>

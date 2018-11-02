@@ -1,0 +1,259 @@
+<template>
+    <view class="video-list">
+        <import src="/templates/video-goods-item.wxml" />
+        <view class="list-title flex" wx:if="{{video_info.list.length && options.showTitle}}">
+            <view class="title-name flex">
+                <image src="/images/common/icon_video.png" />视频购</view>
+        </view>
+        <view class="video-item" wx:for="{{video_info.list}}" wx:for-index="index" wx:for-item="video_item" wx:key="index">
+            <view class="item-image-wrap">
+                <view class="triangle"></view>
+                <view class="timelength flex">
+                    <image src="/images/timelength.png" class="timelength-icon" />
+                    <view class="timelength-text">{{video_item.time.min}}'{{video_item.time.sec}}</view>
+                </view>
+                <image class="item-image" src="{{video_item.cover}}" mode="aspectFill" />
+                <view class="item-play flex" @tap="navigateTo('/pages/video/detail?sid={{video_item.id}}')">
+                    <image src="/images/play.png" />
+                </view>
+                <view class="item-title" @tap="navigateTo('/pages/video/detail?sid={{video_item.id}}')">
+                    {{video_item.title}}
+                </view>
+            </view>
+            <view class="goods-list-index" wx:if="{{video_item.goods.length}}">
+                <scroll-view scroll-x class="flex">
+                    <view class="flex">
+                        <block wx:for="{{video_item.goods}}" wx:key="index">
+                            <template is="video-goods-item" data="{{item}}" />
+                        </block>
+                    </view>
+                </scroll-view>
+            </view>
+            <view class="goods-list-index" wx:else>
+                <view class="goods-item no-goods" @tap="gotoMall">
+                    <image src="/images/no-goods.png" mode="aspectFit" />
+                    <view class="buy-btn" @tap.stop="gotoMall">去逛逛</view>
+                </view>
+            </view>
+        </view>
+        <view class="loading" wx:if="{{video_info.loading}}">正在加载中...</view>
+        <view class="no-data" wx:if="{{video_info.list.length && !video_info.loading}}">(@ο@) 哇～我是有底线的！</view>
+    </view>
+</template>
+<script>
+    import wepy from "wepy";
+    export default class Index extends wepy.component {
+        props = {
+            options: Object
+        }
+        config = {
+            'navigationBarTitleText': '视频列表',
+            enablePullDownRefresh: true
+        };
+        data = {
+            video_info: {
+                list: [],
+                loading: false,
+                has_next: true,
+                page: 1,
+            }
+        };
+        methods = {
+            gotoDetail(e) {
+                let {
+                    item
+                } = e.currentTarget.dataset;
+                this.$emit('navigateTo', `/pages/${item.is_groupon?'groupon':item.type}/detail?goods_id=${item.bid}`);
+            },
+            openSpecLink(e) {
+                let {
+                    item
+                } = e.currentTarget.dataset;
+                this.openSpec(item.bid, item.type);
+                this.$emit('openSpec', item.bid, item.type);
+            },
+            gotoMall() {
+                wx.switchTab({
+                    url: `/pages/mall/index`
+                });
+            },
+            userLogin(type, e) {
+                this.$emit('userLogin', type, e);
+            },
+            navigateTo(url) {
+                this.$emit('navigateTo', url);
+            }
+        };
+        getVideoData() {
+            let {
+                loading,
+                has_next
+            } = this.video_info;
+            if (loading || !has_next) return;
+            this.video_info.loading = true;
+            this.$apply();
+            this.$emit('getVideoData', this.video_info.page);
+        }
+        renderData(json, callback) {
+            this.video_info.list = this.video_info.list.concat(json.list);
+            this.video_info.has_next = this.video_info.page < json.total_page;
+            this.video_info.page++;
+            this.video_info.loading = false;
+            this.$apply();
+            callback && callback();
+        }
+        resetData() {
+            this.video_info = {
+                list: [],
+                loading: false,
+                has_next: true,
+                page: 1,
+            };
+        }
+    }
+</script>
+<style lang="less">
+    .video-item {
+        position: relative;
+        background: #fff;
+        margin-bottom: 20rpx;
+        border-bottom: 1px solid #f2f2f2;
+        overflow: hidden;
+        &:last-child {
+            margin-bottom: 0;
+        }
+        .playing {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.4);
+            &:before {
+                content: "正在播放";
+                color: #fff;
+                font-size: 22rpx;
+                width: 144rpx;
+                height: 48rpx;
+                border-radius: 24rpx;
+                line-height: 48rpx;
+                border: 1px solid #fff;
+                background: rgba(0, 0, 0, 0.2);
+                text-align: center;
+            }
+        }
+        .shop-icon {
+            position: absolute;
+            width: 100rpx;
+            height: 52rpx;
+            background: #ff3c5c;
+            border-radius: 26rpx;
+            right: 22rpx;
+            bottom: 22rpx;
+            z-index: 1;
+            justify-content: center;
+            text-align: center;
+            color: #fff;
+            &.opened {
+                background: #fff;
+                .img {
+                    position: absolute;
+                    width: 100rpx;
+                    height: 52rpx;
+                    top: 0;
+                    left: 0;
+                    display: block;
+                }
+            }
+            .img {
+                width: 36rpx;
+                height: 36rpx;
+                display: inline-block;
+            }
+        }
+        .item-image-wrap {
+            position: relative;
+            &:after {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: -webkit-linear-gradient(top, rgba(0, 0, 0, .05), rgba(0, 0, 0, .5));
+            }
+            .triangle {
+                height: 0;
+                width: 0;
+                position: absolute;
+                bottom: 0;
+                left: 50%;
+                transform: translateX(-50%);
+                border-right: 16rpx solid transparent;
+                border-bottom: 16rpx solid #fff;
+                border-left: 16rpx solid transparent;
+                z-index: 11;
+            }
+            .timelength {
+                position: absolute;
+                top: 0;
+                left: 0;
+                z-index: 10;
+                .timelength-text {
+                    font-size: 22rpx;
+                    color: #fff;
+                    width: 108rpx;
+                    line-height: 40rpx;
+                    z-index: 11;
+                    text-indent: 36rpx;
+                }
+                .timelength-icon {
+                    width: 108rpx;
+                    height: 40rpx;
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                }
+            }
+            position: relative;
+            .item-image {
+                width: 100%;
+                height: 422rpx;
+                display: block;
+            }
+            .item-play {
+                position: absolute;
+                top: 0;
+                right: 0;
+                left: 0;
+                bottom: 0;
+                background-size: 100rpx;
+                justify-content: center;
+                z-index: 10;
+                image {
+                    width: 100rpx;
+                    height: 100rpx;
+                }
+            }
+        }
+        .item-title {
+            padding: 0 22rpx;
+            font-size: 30rpx;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            height: 98rpx;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            line-height: 98rpx;
+            text-shadow: 1rpx 1rpx 2rpx rgba(0, 0, 0, .5);
+            z-index: 10;
+        }
+    }
+</style>

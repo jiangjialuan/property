@@ -1,0 +1,265 @@
+<template>
+    <view class="branch-page" wx:if="{{!loading}}">
+        <view class="fixed-background" style="background:{{backgroundColor}}"></view>
+        <view class="select-location flex" @tap="chooseLocation">
+            <image src="/images/common/select_location.png" />{{address?'当前位置：'+address:'选择位置'}} >
+        </view>
+        <view class="shop-list" wx:if="{{shop_info.list.length}}">
+            <view class="shop-item" wx:for="{{shop_info.list}}" wx:for-index="index" wx:for-item="item" wx:key="index">
+                <view class="item-desc flex" @tap="gotoShop('{{item.shop_id}}')">
+                    <view class="item-basic">
+                        <view class="item-name">{{item.shop_name}}</view>
+                        <view class="item-address">{{item.address}}</view>
+                    </view>
+                    <view class="item-distance" wx:if="{{item.distance}}">距离{{item.distance}}</view>
+                </view>
+                <view class="item-others flex">
+                    <view class="item-phone flex" @tap="makePhoneCall('{{item.mobile_phone}}')">
+                        <image src="/images/common/icon_phone.png" />{{item.mobile_phone}}
+                    </view>
+                    <view class="item-location flex" @tap="openLocation({{item.latitude}},{{item.longitude}})">
+                        <image src="/images/common/icon_adress.png" />导航去这里
+                    </view>
+                </view>
+            </view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from "wepy";
+    import api from "../../common/api";
+    import store from "../../common/store";
+    import loadCode from "../../common/loadCode";
+    import shopIndex from '../../components/shop/index';
+    import cartService from "../../common/cartService";
+    export default class Branch extends wepy.page {
+        config = {
+            'navigationBarTitleText': '切换店铺'
+        };
+        data = {
+            backgroundColor: '',
+            address: '',
+            shop_info: {
+                list: [],
+                page: 1,
+                has_next: true
+            },
+            loading: false,
+            userInfo: {}
+        };
+        // 获取分店列表
+        getShopList(longitude, latitude) {
+            let data = {
+                act: 1,
+                longitude: longitude || '',
+                latitude: latitude || '',
+            };
+            api.request({
+                url: api.get_shop_near,
+                data: data
+            }).then(json => {
+                this.shop_info.list = this.shop_info.list.concat(json.list);
+                api.loading.hide();
+                this.$apply();
+            });
+        }
+        methods = {
+            chooseLocation() {
+                const chooseLocation = () => {
+                    wx.chooseLocation({
+                        success: (res) => {
+                            let {
+                                address,
+                                latitude,
+                                longitude,
+                                name
+                            } = res;
+                            api.location_info = {
+                                address,
+                                latitude,
+                                longitude,
+                                name
+                            };
+                            this.address = address + name;
+                            this.shop_info = {
+                                list: [],
+                                page: 1,
+                                has_next: true
+                            };
+                            this.getShopList(longitude, latitude);
+                            this.$apply();
+                        }
+                    });
+                }
+                wx.getSetting({
+                    success: res => {
+                        if (res.authSetting["scope.userLocation"]) {
+                            chooseLocation();
+                        } else {
+                            wx.openSetting({
+                                success: (res) => {
+                                    chooseLocation();
+                                }
+                            });
+                        }
+                    }
+                });
+            },
+            openLocation(latitude, longitude) {
+                wx.openLocation({
+                    latitude: latitude,
+                    longitude: longitude
+                });
+            },
+            makePhoneCall(mobile_phone) {
+                wx.makePhoneCall({
+                    phoneNumber: mobile_phone
+                });
+            },
+            gotoShop(shop_id) {
+                wx.reLaunch({
+                    url: `/pages/main/index?shop_id=${shop_id}`
+                });
+            }
+        };
+        resetData() {
+            this.loading = false;
+            this.userInfo = {};
+            this.shop_info = {
+                list: [],
+                page: 1,
+                has_next: true
+            };
+            this.$apply();
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+                this.backgroundColor = backgroundColor;
+                this.$apply();
+            });
+        }
+        onLoad(options) {
+            api.loading.show();
+            api.checkLogin().then(json => {
+                api.from_uid = options.from_uid || api.from_uid;
+                api.shop_id = options.shop_id || parseInt(api.shop_id);
+                this.userInfo = json;
+                this.$apply();
+                let {
+                    address,
+                    latitude,
+                    longitude,
+                    name
+                } = api.location_info;
+                if (latitude) {
+                    this.address = address + name;
+                    this.getShopList(longitude, latitude);
+                    this.$apply();
+                } else {
+                    api.loading.hide();
+                    this.getShopList();
+                }
+            });
+        }
+        onShareAppMessage(res) {
+            let uid = api.userInfo.is_agency ? api.userInfo.uid : api.from_uid ? api.from_uid : api.userInfo.uid,
+                title = this.title,
+                path = `/pages/branch/index?from_uid=${uid}&shop_id=${api.shop_id}`;
+            console.log(`/pages/branch/index?from_uid=${uid}&shop_id=${api.shop_id}`);
+            return {
+                title: title,
+                path: path,
+                success: res => {
+                    wx.showToast({
+                        title: "转发成功！"
+                    });
+                },
+                fail: res => {
+                    let msg = "转发失败！";
+                    if (/cancel/gi.test(res.errorMsg) > -1) {
+                        msg = "转发取消！";
+                    }
+                    wx.showToast({
+                        image: "../../images/fail.png",
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>
+<style lang="less">
+    .branch-page {
+        background: #f2f3f4;
+        .select-location {
+            height: 100rpx;
+            padding: 0 30rpx;
+            color: #999;
+            font-weight: bold;
+            image {
+                width: 40rpx;
+                height: 40rpx;
+                margin-right: 12rpx;
+                flex-shrink: 0;
+            }
+        }
+        .shop-list {
+            .shop-item {
+                margin-bottom: 20rpx;
+                background:#fff;
+                .item-desc {
+                    padding: 30rpx;
+                    justify-content: space-between;
+                    .item-name {
+                        font-size: 32rpx;
+                        color: #333;
+                        text-overflow: ellipsis;
+                        overflow: hidden;
+                        white-space: nowrap;
+                        width: 520rpx;
+                        font-weight: bold;
+                    }
+                    .item-address {
+                        font-size: 24rpx;
+                        color: #999;
+                        margin-top: 16rpx;
+                        text-overflow: ellipsis;
+                        overflow: hidden;
+                        white-space: nowrap;
+                        width: 520rpx;
+                    }
+                    .item-distance {
+                        color: #999;
+                        font-size: 24rpx;
+                    }
+                }
+                .item-others {
+                    height: 92rpx;
+                    justify-content: space-between;
+                    border-top: 1px solid #e6e6e6;
+                    >view {
+                        width: 50%;
+                        border-right: 1px solid #e6e6e6;
+                        font-size: 28rpx;
+                        color: #999;
+                        justify-content: center;
+                        image {
+                            width: 28rpx;
+                            height: 28rpx;
+                            margin-right: 10rpx;
+                        }
+                        &:last-child {
+                            border-right: none;
+                        }
+                    }
+                }
+            }
+        }
+    }
+</style>

@@ -1,0 +1,193 @@
+<template>
+    <cart/>
+    <image class="go-to-top-btn" style="bottom: 152rpx" src="/images/go_to_top.png" wx:if="{{goToTopBtnShow}}" @tap.stop="pageScrollTo(0)" />
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    import cartService from '../../common/cartService';
+    import cart from '../../components/cart';
+    export default class Cart extends wepy.page {
+        config = {
+            'navigationBarTitleText': '购物车',
+        };
+        components = {
+            cart
+        };
+        data = {
+            cart_info: {
+                list: [],
+                page: 1,
+                checked: false,
+            },
+            loading: false,
+            userInfo: {},
+            recommand_goods: [],
+            windowHeight: 0,
+            goToTopBtnShow: false,
+        };
+        methods = {
+            pageScrollTo(px) {
+                api.pageScrollTo(px)
+            },
+            gotoDetail(e) {
+                let {
+                    item
+                } = e.currentTarget.dataset;
+                api.navigateTo(`/pages/${item.is_groupon?'groupon':item.type}/detail?goods_id=${item.bid}`);
+            }
+        }
+        events = {
+            // 更新购物车数量
+            updateCart(id, num) {
+                api.request({
+                    url: api.update_cart_goods_num,
+                    method: 'POST',
+                    data: {
+                        cart_id: id,
+                        num: num
+                    }
+                }).then(json => {
+                    this.cart_info.list.map(item => {
+                        item.goods_list.map(goods => {
+                            if (goods.cart_id == id) {
+                                goods.num = num;
+                            }
+                        });
+                    });
+                    this.$invoke('cart', 'initData', this.cart_info, this.recommand_goods);
+                });
+            },
+            delCart(cart_id) {
+                cartService.deleteCart(cart_id).then((json) => {
+                    let {
+                        list
+                    } = this.cart_info;
+                    list.map((item, index) => {
+                        let goodsList = item.goods_list;
+                        goodsList.map((goods, goodsIndex) => {
+                            if (goods.cart_id == cart_id) {
+                                if (goodsList.length > 1) {
+                                    goodsList.splice(goodsIndex, 1);
+                                } else {
+                                    list.splice(index, 1);
+                                }
+                            }
+                        });
+                    });
+                    this.cart_info.list = list;
+                    this.$invoke('cart', 'initData', this.cart_info, this.recommand_goods);
+                    this.$apply();
+                });
+            },
+            confirmCart(cart_ids) {
+                cartService.confirmCart(cart_ids).then((json) => {
+                    store.set('goods_info', json);
+                    wx.navigateTo({
+                        url: `/pages/goods/confirm?from=cart`
+                    });
+                }).catch(msg => {
+                    api.showModal(msg);
+                });
+            }
+        };
+        // 猜你喜欢
+        getRecommandGoods() {
+            let data = {
+                zb_id: api.buid,
+                shop_id: api.shop_id
+            };
+            api.request({
+                url: api.love_goods,
+                data: data
+            }).then(json => {
+                this.recommand_goods = json;
+                this.$invoke('cart', 'initData', this.cart_info, this.recommand_goods);
+                this.$apply();
+            });
+        }
+        // 获取购物车数据
+        getCartList() {
+            let id = wx.getStorageSync('uid'),
+                sdkInfo = wx.getStorageSync('sdk_zbinfo');
+            let data = {
+                id: id,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts,
+                page: this.cart_info.page,
+                zb_id: api.buid
+            };
+            api.request({
+                url: api.get_cart_list,
+                data: data
+            }).then(json => {
+                json.list.map(item => {
+                    item.goods_list.map(goods => {
+                        goods.isDelShow = false;
+                        goods.right = 0;
+                        if (!goods.stock || goods.sell == 1) {
+                            goods.invalid = true;
+                        }
+                    });
+                });
+                this.cart_info.list = json.list;
+                this.getRecommandGoods();
+                this.loading = false;
+                this.$apply();
+                api.loading.hide();
+            });
+        }
+        resetData() {
+            this.cart_info = {
+                list: [],
+                page: 1,
+                checked: false,
+            };
+            this.loading = true;
+            this.userInfo = {};
+            this.recommand_goods = [];
+            this.$apply();
+        }
+        onPageScroll(e) {
+            if (this.windowHeight) {
+                this.goToTopBtnShow = e.scrollTop >= this.windowHeight;
+                this.$apply();
+            }
+        }
+        onShow() {
+            this.resetData();
+            api.loading.show();
+            api.checkLogin().then(json => {
+                this.userInfo = wx.getStorageSync('userInfo');
+                this.windowHeight = wx.getSystemInfoSync().windowHeight;
+                this.$apply();
+                let uid = wx.getStorageSync('uid'),
+                    sdkInfo = wx.getStorageSync('sdk_zbinfo');
+                if (!sdkInfo) {
+                    api.request({
+                        url: api.get_sdk_zbinfo,
+                        data: {
+                            uid: uid
+                        }
+                    }).then(json => {
+                        wx.setStorageSync('sdk_zbinfo', json);
+                        this.getCartList();
+                    });
+                } else {
+                    this.getCartList();
+                }
+            });
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+        }
+    }
+</script>
+

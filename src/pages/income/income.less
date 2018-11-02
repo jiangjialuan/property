@@ -1,0 +1,63 @@
+.order-page {
+    .red {
+        color: #FF552A;
+        font-size: 26rpx;
+    }
+    .tabs {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        z-index: 999;
+    }
+    .order-list {
+        background-color: #f2f3f4;
+        padding-top: 80rpx;
+    }
+    .order-item {
+        background-color: #fff;
+        margin-top: 12rpx;
+        .order-title {
+            padding: 0 28rpx;
+            font-size: 28rpx;
+            line-height: 80rpx;
+            font-size: 24rpx;
+            border-bottom: 1px solid #dedfe0;
+            color: #666;
+            justify-content: space-between;
+            .agency-text {
+                color: #FF552A;
+                border: 1px solid #FF552A;
+                border-radius: 4rpx;
+                padding: 2rpx 4rpx;
+                margin-left: 30rpx;
+            }
+        }
+    }
+    .goods-item {
+        position: relative;
+        padding: 20rpx 28rpx;
+        border-bottom: 1px solid #dedfe0;
+        display: flex;
+        justify-content: space-between;
+    }
+    .goods-item .name {
+        margin-bottom: 20rpx;
+        white-space: nowrap;
+        overflow: hidden;
+        width: 700rpx;
+        text-overflow: ellipsis;
+    }
+    .goods-item .desc {
+        margin-bottom: 20rpx;
+        text {
+            margin-right: 40rpx;
+            &.income {
+                color: #FF552A;
+            }
+        }
+    }
+    .goods-item .update-date {
+        color: #999;
+    }
+}

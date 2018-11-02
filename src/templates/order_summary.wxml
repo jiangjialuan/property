@@ -1,0 +1,42 @@
+<template name="order_summary">
+<view class="section detail-item">
+    <view class="section-item flex">
+        <text class="label">商品金额</text>
+        <text class="flex-item">¥ {{item.goods_money}}</text>
+    </view>
+    <view class="section-item flex" wx:if="{{item.bonus}}">
+        <text class="label">优惠减免</text>
+        <text class="flex-item">- ¥ {{item.bonus}}</text>
+    </view>
+    <view class="section-item flex" wx:if="{{item.shipping}}">
+        <text class="label">配送费</text>
+        <text class="flex-item">+ ¥ {{item.shipping || '0.00'}}</text>
+    </view>
+    <view class="section-item flex" wx:if="{{item.gift_goods_name}}">
+        <text class="label">赠品</text>
+        <text class="flex-item">{{item.gift_goods_name}}</text>
+    </view>
+    <view class="section-item flex">
+        <text class="label">{{item.status == 'pay_order' || item.status == 'cancel'?'应付':'实付'}}款</text>
+        <text class="flex-item money">¥ {{item.money_paid}}</text>
+    </view>
+</view>
+<view class="order-code section">
+    <view class="section-item flex" bindlongpress="copyOrderCode" data-item="{{item}}">
+        <text class="label">订单编号：{{item.sn}} (长按复制)</text>
+    </view>
+    <view class="section-item flex">
+        <text class="label">创建时间：{{item.createtime}}</text>
+    </view>
+    <view class="section-item flex" wx:if="{{item.shipping_time}}">
+        <text class="label">发货时间：{{item.shipping_time}}</text>
+    </view>
+    <view class="section-item flex" wx:if="{{item.receive_time}}">
+        <text class="label">完成时间：{{item.receive_time}}</text>
+    </view>
+    <view class="section-item flex" wx:if="{{item.status == 'pre_produce' || item.status == 'receive'}}">
+        <text class="label">付款时间：{{item.pay_time}}</text>
+    </view>
+</view>
+</template>
+

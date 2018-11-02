@@ -1,0 +1,390 @@
+<template>
+    <view class="account-page page" wx:if="{{!loading}}">
+        <view class="account-panel" wx:if="{{!userInfo.is_agency}}">
+            <image src="{{accountInfo.head_pic}}" class="account-logo" />
+            <view class="tips">
+                <i class="account-name">{{accountInfo.name}}</i>正在邀请您成为合伙人，请进行身份验证
+            </view>
+            <image src="../../images/account/wafe.png" class="account-bg" />
+        </view>
+        <view class="account-panel" wx:else>
+            <image src="{{accountInfo.head_pic}}" class="account-logo" />
+            <view class="tips">
+                您已经被<i class="account-name">{{accountInfo.name}}</i>邀请为合伙人
+            </view>
+            <image src="../../images/account/wafe.png" class="account-bg" />
+        </view>
+        <view class='form-panel' wx:if="{{!userInfo.is_agency}}">
+            <view class="input-txt phone">
+                <image src="../../images/account/phone.png" class="icon" />
+                <input placeholder="请输入你的手机号" @input="phoneInput" @focus="inputFocus" value="{{mobilePhone}}" />
+            </view>
+            <view class="input-txt code">
+                <image src="../../images/account/code.png" class="icon" />
+                <input placeholder="请输入短信验证码" @input="codeInput" @focus="inputFocus" value="{{verifyCode}}" />
+                <a class="code-btn `{{codeEnable?'':'disable'}}`" @tap="sendVerifyCode">
+                    <span wx:if="{{codeText}}"><i>{{codeText}}</i>s后重试</span>
+                    <span wx:else>获取验证码</span>
+                </a>
+            </view>
+            <view class="error-tips">{{errorTips}}</view>
+            <button open-type="getUserInfo" bindgetuserinfo="userLogin('login')" class="submit-btn" wx:if="{{!userInfo.name}}" plain>提交</button>
+            <a class="submit-btn" @tap="submitForm" wx:else>提交</a>
+            <view class="tips">
+                <view>1、验证手机后，您可以及时获得订单短信提醒</view>
+                <view>2、成功交易后，您将获得商品对应佣金</view>
+                <view>3、您可以邀请合伙人，合伙人推广的商品您亦可获得对应佣金</view>
+            </view>
+        </view>
+        <view class='form-panel' wx:else>
+            <button class="submit-btn" open-type="share" plain="true" style="margin-top:100rpx;">立即邀请合伙人</button>
+            <navigator class="submit-btn" style="margin-top:48rpx;background:#07AF12" url="/pages/mall/index" open-type="switchTab">
+                立即赚佣金
+            </navigator>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import api from '../../common/api';
+    let startTime,
+        countdownTimeout;
+    let verifyCodeInterval, disable = true;
+    export default class account extends wepy.page {
+        fixed(restTimestamp) {
+            let realTimeLeft = parseInt(Date.now() - startTime, 10),
+                offset = Date.now() - (startTime + realTimeLeft),
+                nextTime = 1000 - offset;
+            if (nextTime < 0) nextTime = 0;
+            if (restTimestamp - realTimeLeft < 1000 * 60 * 10) {
+                nextTime = 100;
+            }
+            countdownTimeout = setTimeout(() => {
+                this.fixed(restTimestamp);
+            }, nextTime);
+            if (realTimeLeft >= restTimestamp) {
+                startTime = Date.now();
+                realTimeLeft = 0;
+                clearTimeout(countdownTimeout);
+                countdownTimeout = null;
+                this.codeText = "";
+                this.codeEnable = true;
+                this.$apply();
+            } else {
+                this.codeText = this.format(restTimestamp - realTimeLeft);
+                this.$apply();
+            }
+        }
+        format(time) {
+            let hour = time < 0 ? 0 : parseInt(time / 1000 / 3600),
+                min = time < 0 ? 0 : parseInt((time / 1000 - hour * 3600) / 60),
+                sec = time < 0 ? 0 : parseInt(time / 1000 - hour * 3600 - min * 60);
+            return sec;
+        }
+        config = {
+            'navigationBarTitleText': '合伙人申请'
+        };
+        data = {
+            codeText: '',
+            errorTips: '',
+            codeEnable: false,
+            accountInfo: {}, //母账户信息
+            userInfo: {},
+            mobilePhone: '',
+            verifyCode: '',
+            verifyCodeCount: 60,
+            loading: true,
+            from_uid: ''
+        };
+        renderTips(msg) {
+            this.errorTips = msg;
+            this.$apply();
+        }
+        resetData() {
+            this.clearCodeInterval();
+            this.codeText = '';
+            this.errorTips = '';
+            this.accountInfo = {}; //母账户信息
+            this.userInfo = {};
+            this.mobilePhone = '';
+            this.verifyCode = '';
+            this.from_uid = '';
+            this.loading = true;
+        }
+        methods = {
+            phoneInput(e) {
+                this.mobilePhone = e.detail.value;
+                this.codeEnable = false;
+                this.$apply();
+                if (/^1\d{10}$/.test(this.mobilePhone)) {
+                    this.codeEnable = true;
+                    this.$apply();
+                }
+                this.$apply();
+            },
+            codeInput(e) {
+                this.verifyCode = e.detail.value;
+                this.$apply();
+            },
+            inputFocus() {
+                this.renderTips("");
+            },
+            // 渲染验证码倒计时
+            renderVerifyCodeText(flag, text) {
+                this.codeEnable = flag;
+                this.$apply();
+            },
+            // 发送验证码
+            sendVerifyCode() {
+                if (!this.codeEnable) return;
+                this.codeEnable = false;
+                this.$apply();
+                let mobilePhone = this.mobilePhone;
+                api.request({
+                    url: api.send_verification,
+                    data: {
+                        act: 7,
+                        mobile_phone: mobilePhone
+                    }
+                }).then(data => {
+                    startTime = Date.now();
+                    countdownTimeout = setTimeout(() => {
+                        this.fixed(this.verifyCodeCount * 1000);
+                    }, 0);
+                });
+            },
+            userLogin(type, e) {
+                api.userLogin(type, e).then(json => {
+                    let data = json.data.data;
+                    this.userInfo = data;
+                    this.submitForm();
+                    this.$apply();
+                });
+            },
+            // 提交
+            submitForm() {
+                let mobilePhone = this.mobilePhone,
+                    verifyCode = this.verifyCode,
+                    tips = this.validateForm();
+                if (tips) return;
+                this.renderTips(tips);
+                api.request({
+                    url: api.join_agent,
+                    data: {
+                        act: 1,
+                        mobile_phone: mobilePhone,
+                        ticket_code: verifyCode,
+                        from_uid: this.from_uid
+                    },
+                    method: 'POST'
+                }).then(json => {
+                    this.userInfo.is_agency = 1;
+                    this.userInfo.parent_uid = this.from_uid;
+                    api.userInfo = this.userInfo;
+                    this.$apply();
+                }).catch(msg => {
+                    wx.showToast({
+                        image: '../../images/fail.png',
+                        title: msg
+                    });
+                });
+            }
+        }
+        clearCodeInterval() {
+            clearTimeout(countdownTimeout);
+            countdownTimeout = null;
+            this.verifyCodeCount = 60;
+            this.codeEnable = false;
+            this.$apply();
+        }
+        getSupplierInfo() {
+            api.request({
+                url: api.get_supplier_info,
+                data: {
+                    act: 1,
+                    from_uid: api.userInfo.parent_uid ? api.userInfo.parent_uid : this.from_uid
+                },
+            }).then(json => {
+                console.log('getSupplierInfo', json);
+                this.accountInfo = json;
+                setTimeout(() => {
+                    this.loading = false;
+                    this.$apply();
+                }, 800);
+                this.$apply();
+            });
+        }
+        onShow() {
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                this.$apply();
+            });
+        }
+        onLoad(options) {
+            this.resetData();
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                api.shop_id = options.shop_id || parseInt(api.shop_id);
+                var scene = decodeURIComponent(options.scene);
+                if (scene == 'undefined') {
+                    this.from_uid = options.from_uid;
+                } else {
+                    var sceneObj = {};
+                    scene.split(',').map(item => {
+                        let value = item.split(":");
+                        sceneObj[value[0]] = value[1];
+                    });
+                    this.from_uid = sceneObj.from_uid;
+                };
+                api.from_uid = this.from_uid || api.from_uid;
+                this.$apply();
+                this.getSupplierInfo();
+                api.setBackgroundColor('#ffffff', '#FF552A');
+            });
+        }
+        // 表单验证
+        validateForm() {
+            let mobilePhone = this.mobilePhone,
+                verifyCode = this.verifyCode,
+                tips = '';
+            if (!mobilePhone) {
+                tips = '手机号码不能为空';
+                return tips;
+            }
+            if (!/^1\d{10}$/.test(mobilePhone)) {
+                tips = '手机号码格式不正确';
+                return tips;
+            }
+            if (!verifyCode) {
+                tips = '验证码不能为空';
+                return tips;
+            }
+            if (!/\d/.test(verifyCode)) {
+                tips = '验证码格式不正确';
+                return tips;
+            }
+            return tips;
+        }
+        onShareAppMessage(res) {
+            console.log(res,"fdsafdsfds");
+            let uid = this.userInfo.is_agency ? this.userInfo.uid : api.from_uid ? api.from_uid : this.userInfo.uid,
+                title = '免费加入，超高佣金，无需囤货，分享即赚钱';
+            if (this.userInfo.is_agency) {
+                title = `${this.userInfo.name}正在邀请您成为合伙人`;
+            }
+
+            return {
+                title: title,
+                imageUrl: '/images/consult_share.jpg',
+                path : `/pages/property/partner?from_uid=${uid}&shop_id=${api.shop_id}`,
+                success: (res) => {
+                    wx.showToast({
+                        title: '转发成功！'
+                    });
+                },
+                fail: (res) => {
+                    let msg = '转发失败！';
+                    if (/cancel/ig.test(res.errorMsg) > -1) {
+                        msg = '转发取消！'
+                    }
+                    wx.showToast({
+                        image: '../../images/fail.png',
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>
+<style lang="less">
+    .account-page {
+        .account-panel {
+            height: 450rpx;
+            text-align: center;
+            background: #FF552A;
+            position: relative;
+            .account-logo {
+                width: 144rpx;
+                height: 144rpx;
+                border: 4rpx solid #fff;
+                border-radius: 50%;
+                margin: 45rpx 0;
+            }
+            .account-bg {
+                position: absolute;
+                bottom: 0;
+                height: 94rpx;
+                width: 100%;
+                left: 0;
+            }
+            .account-name {
+                color: #ff0;
+            }
+            .tips {
+                width: 80%;
+                color: #fff;
+                line-height: 1.3;
+                font-size: 28rpx;
+                margin: 0 auto;
+            }
+        }
+        .form-panel {
+            .input-txt {
+                display: flex;
+                align-items: center;
+                margin: 40rpx 42rpx 0;
+                height: 80rpx;
+                border: 1px solid #999;
+                border-radius: 40rpx;
+                image {
+                    width: 26rpx;
+                    height: 33rpx;
+                    margin: 0 20rpx;
+                }
+                input {
+                    flex: 1;
+                    border: none;
+                    outline: none;
+                    display: flex;
+                    align-items: center;
+                    height: 40rpx;
+                    line-height: 40rpx;
+                }
+            }
+            .error-tips {
+                margin-top: 12rpx;
+                color: #f00;
+                text-align: center;
+                height: 40rpx;
+                font-size: 24rpx;
+            }
+            .code-btn {
+                height: 80rpx;
+                line-height: 80rpx;
+                text-align: center;
+                color: #FF552A;
+                width: 200rpx;
+                font-size: 24rpx;
+                &.disable {
+                    color: #666;
+                }
+            }
+            .submit-btn {
+                display: block;
+                height: 80rpx;
+                line-height: 80rpx;
+                color: #fff;
+                background: #FF552A;
+                font-size: 32rpx;
+                text-align: center;
+                margin: 20rpx 42rpx 0;
+                border-radius: 40rpx;
+                border: none;
+            }
+            .tips {
+                margin: 60rpx 42rpx 0;
+                color: #666;
+            }
+        }
+    }
+</style>

@@ -1,0 +1,443 @@
+<template>
+    <view class="order-confirm page">
+        <view class="delivery-tips flex" wx:if="{{!order_info.pickup_self && order_info.goods_list.length > 1}}">部分店铺不支持到店自提，如需自提可分开下单</view>
+        <view class="delivery-type flex" wx:if="{{order_info.pickup_self}}">
+            <view class="type-item {{order_info.delivery_type == 'delivery'?'active':''}}" @tap="changeDeliveryType('delivery')">商家配送
+                <image src="/images/goods/checked.png" wx:if="{{order_info.delivery_type == 'delivery'}}" />
+            </view>
+            <view class="type-item {{order_info.delivery_type == 'pickup'?'active':''}}" @tap="changeDeliveryType('pickup')">到店自提
+                <image src="/images/goods/checked.png" wx:if="{{order_info.delivery_type == 'pickup'}}" />
+            </view>
+        </view>
+        <view class="delivery-type flex" wx:else>
+            <view class="type-item {{order_info.delivery_type == 'delivery'?'active':''}}" @tap="changeDeliveryType('delivery')">商家配送
+                <image src="/images/goods/checked.png" wx:if="{{order_info.delivery_type == 'delivery'}}" />
+            </view>
+            <view class="type-item disabled" @tap="changeDeliveryType('pickup')">到店自提</view>
+        </view>
+        <view wx:if="{{order_info.delivery_type != 'pickup'}}">
+            <view class="address-info flex" wx:if="{{address_info.address_id}}" @tap="gotoAddress">
+                <image src="/images/mall/location.png" class="location" />
+                <view class="clearfix" style="width: 80%;">
+                    <view class="address-name">
+                        <text>{{address_info.consignee}}</text>
+                        <text>{{address_info.mobile}}</text>
+                    </view>
+                    <view class="address-detail text-over-ellipsis">{{address_info.full_address}}</view>
+                </view>
+            </view>
+            <view class="address-info flex no-address" wx:else @tap="gotoAddress('new')">
+                <image src="/images/goods/add.png" class="add-icon" /> 点击添加收货地址
+            </view>
+        </view>
+        <view class='form-panel' wx:else>
+            <view class="input-txt flex">
+                <view class="label-text">手机
+                    <text class="red">*</text>
+                </view>
+                <input placeholder="请填写您的手机号码" @blur="phoneInput" value="{{mobile}}" type="number" maxlength="11" />
+            </view>
+        </view>
+        <confirm/>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    import orderService from '../../common/orderService';
+    import confirm from '../../components/confirm';
+    export default class Confirm extends wepy.page {
+        config = {
+            'navigationBarTitleText': '确认订单',
+        };
+        components = {
+            confirm
+        };
+        data = {
+            address_info: {},
+            order_info: {},
+            cart_ids: [],
+            loading: true,
+            from: '',
+            is_groupon: 0,
+            num: 0,
+            mobile: '',
+            remark: '',
+            coupon_info: {
+                page: 1,
+                has_next: true,
+                list: [],
+                loading: false
+            }
+        };
+        payOrder(json) {
+            orderService.payOrder(json.order_id, json.sn).then(() => {
+                let url = `/pages/main/pay_success?order_id=${json.order_id}`;
+                if (this.order_info.is_groupon == 1) {
+                    url = `/pages/groupon/pay_success?order_id=${json.order_id}`
+                }
+                wx.redirectTo({
+                    url
+                });
+            }).catch(() => {
+                wx.showModal({
+                    content: '支付遇到了一点问题，或者你取消了支付，你可以点击立即支付或者前往我的--我的订单进行支付',
+                    confirmText: '立即支付',
+                    confirmColor: '#f7982a',
+                    success: (res) => {
+                        if (res.confirm) {
+                            this.payOrder(json);
+                        } else {
+                            wx.redirectTo({
+                                url: '/pages/order/list'
+                            });
+                        }
+                    }
+                });
+            });
+        }
+        // 表单验证
+        validateForm() {
+            if (this.order_info.delivery_type == 'delivery') { //配送
+                let {
+                    address_id
+                } = this.address_info;
+                if (!address_id) {
+                    return '收货地址不能为空';
+                    return false;
+                }
+            } else { //自提
+                if (!this.mobile) {
+                    return '手机号码不能为空';
+                }
+                if (!/^1\d{10}$/.test(this.mobile)) {
+                    return '手机号码格式不正确';
+                }
+                return '';
+            }
+        }
+        events = {
+            // 更新数量
+            updateGoodsNum(num) {
+                api.request({
+                    url: api.update_order_goods_num,
+                    method: 'POST',
+                    data: {
+                        num
+                    }
+                }).then((json) => {
+                    this.order_info.goods_list[0].goods_list[0].num = num;
+                    this.order_info.goods_list[0].fullprivilege_bonus = json.fullprivilege_bonus;
+                    this.order_info.goods_list[0].gift_goods_name = json.gift_goods_name;
+                    this.order_info.goods_list[0].goods_money = json.goods_money;
+                    this.order_info.goods_list[0].member_bonus = json.member_bonus;
+                    this.order_info.order_money = json.order_money;
+                    this.order_info.shipping = json.shipping;
+                    this.order_info.total_bonus = json.total_bonus;
+                    this.order_info.goods_list[0].coupon_num = json.coupon_num;
+                    this.order_info.goods_list.map(item=>{
+                        item.selected_coupon = {};
+                        item.goods_list[0].fullprivilege_id = json.fullprivilege_id;
+                        item.expand_bonus = json.expand_bonus;
+                    });
+                    this.$invoke('confirm', 'initData', this.order_info);
+                });
+            },
+            // 获取优惠券信息
+            getCouponInfo(param) {
+                let {
+                    shop_id,
+                    page,
+                    available
+                } = param;
+                api.request({
+                    url: `${api.baseUrl}/mobile/coupon/user_coupon_list`,
+                    data: param
+                }).then(json => {
+                    json.list.map(item => {
+                        item.begin_time = item.begin_time.substr(0, 10);
+                        item.end_time = item.end_time.substr(0, 10);
+                    });
+                    if (page == 1) {
+                        this.coupon_info.list = json.list;
+                    } else {
+                        this.coupon_info.list = this.coupon_info.list.concat(json.list);
+                    }
+                    this.coupon_info.shop_id = shop_id;
+                    this.coupon_info.available = available;
+                    this.coupon_info.page = page;
+                    this.coupon_info.has_next = this.coupon_info.page < json.total_page;
+                    this.coupon_info.page++;
+                    this.$invoke('confirm', 'renderCoupon', this.coupon_info);
+                    this.$apply();
+                });
+            },
+            submit(order_info) {
+                let tips = this.validateForm(),
+                    {
+                        address_id
+                    } = this.address_info;
+                if (tips) {
+                    api.showModal(tips);
+                    return;
+                };
+                if (this.loading || api.isClick) return;
+                api.isClick = true;
+                wx.showToast({
+                    title: '正在提交...',
+                    icon: 'loading',
+                    duration: 100000,
+                    mask: true
+                });
+                let data = {
+                        zb_id: api.buid,
+                        from_uid: api.userInfo.is_agency ? api.userInfo.uid : api.from_uid ? api.from_uid : api.userInfo.uid,
+                        remark: order_info.goods_list[0].remark || '',
+                        version: 1
+                    },
+                    url = api.comm_submit_order_buy_now_woxiu;
+                if (order_info.from == 'cart') {
+                    data.cart_ids = this.cart_ids.join(',');
+                    url = api.comm_submit_order_buy_cart;
+                    data.remark = JSON.stringify(order_info.goods_list.map(item => {
+                        return {
+                            "buid": item.buserid,
+                            "remark": item.remark || ''
+                        }
+                    }));
+                } else {
+                    data.num = this.num;
+                }
+                if (order_info.is_groupon == 1) {
+                    url = api.comm_submit_order_buy_now_groupon;
+                }
+                if (order_info.delivery_type == 'pickup') { //自提
+                    data.mobile = this.mobile;
+                    data.pickup_self = 1;
+                } else {
+                    data.pickup_self = 0;
+                    data.address_id = address_id;
+                }
+                data.fullprivilege_id = order_info.privilege_info.join(",");
+                data.coupon_id = order_info.coupon_id.join(",");
+                console.log(data, 'submit order');
+                api.request({
+                    url: url,
+                    data: data,
+                    method: 'POST'
+                }).then(json => {
+                    api.isClick = false;
+                    this.payOrder(json);
+                }).catch(msg => {
+                    api.loading.hide();
+                    api.isClick = false;
+                    if (!msg) return;
+                    api.showModal(msg);
+                });
+            }
+        };
+        methods = {
+            phoneInput(e) {
+                this.mobile = e.detail.value;
+            },
+            remarkInput(e) {
+                this.remark = e.detail.value;
+            },
+            changeDeliveryType(type) {
+                if (!this.order_info.pickup_self) return;
+                this.order_info.delivery_type = type;
+                this.$invoke('confirm', 'initData', this.order_info);
+            },
+            gotoAddress(type) {
+                let url = `/pages/address/list?from=order`;
+                if (type == 'new') {
+                    url = `/pages/address/detail?from=order`;
+                }
+                api.navigateTo(url);
+            }
+        };
+        resetData() {
+            this.address_info = {};
+            this.order_info = {};
+            this.cart_ids = [];
+            this.loading = true;
+            this.$apply();
+        }
+        getAddress() {
+            api.request({
+                url: api.get_address_list
+            }).then(json => {
+                let defaultAddress = json.filter(item => item.is_default == 'yes')[0];
+                if (api.isEmptyObject(defaultAddress)) {
+                    defaultAddress = json[0] || {};
+                }
+                this.loading = false;
+                this.address_info = defaultAddress || {};
+                this.$apply();
+            });
+        }
+        onShow() {
+            let orderDetailAddress = store.get('orderDetailAddress') || {};
+            if (api.isEmptyObject(orderDetailAddress)) {
+                this.getAddress();
+            } else {
+                this.address_info = orderDetailAddress;
+                this.$apply();
+            }
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+        }
+        onLoad(options) {
+            this.resetData();
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                this.order_info = store.get('goods_info');
+                this.order_info.delivery_type = 'delivery';
+                this.order_info.is_groupon = options.is_groupon;
+                this.order_info.from = options.from;
+                if (this.order_info.from == 'cart') {
+                    this.order_info.goods_list.map(item => {
+                        item.goods_list.map(goods => {
+                            this.cart_ids.push(goods.cart_id);
+                        });
+                    });
+                } else {
+                    this.num = this.order_info.goods_list[0].goods_list[0].num;
+                }
+                this.$invoke('confirm', 'initData', this.order_info);
+                this.loading = false;
+                this.$apply();
+            });
+        }
+    }
+</script>
+<style lang="less">
+    @import "../../common/basic.less";
+    .delivery-tips {
+        height: 72rpx;
+        background: #f2f2f2;
+        color: #999;
+        font-size: 24rpx;
+        justify-content: center;
+    }
+    .delivery-type {
+        padding: 40rpx 0;
+        background: #fff;
+        justify-content: center;
+        border-bottom: 1px solid #e6e6e6;
+        .type-item {
+            height: 60rpx;
+            line-height: 60rpx;
+            border-radius: 4rpx;
+            border: 2rpx solid #c1c1c1;
+            color: #c1c1c1;
+            font-size: 28rpx;
+            padding: 0 24rpx;
+            margin-right: 20rpx;
+            position: relative;
+            image {
+                position: absolute;
+                right: 0;
+                top: 0;
+                width: 28rpx;
+                height: 28rpx;
+            }
+            &:last-child {
+                margin-right: 0;
+            }
+            &.disabled {
+                background: #f2f2f2;
+            }
+            &.active {
+                color: @active-color;
+                border-color: @active-color;
+            }
+        }
+    }
+    .form-panel {
+        margin-bottom: 20rpx;
+        .input-txt {
+            min-height: 100rpx;
+            background: #fff;
+            padding-left: 30rpx;
+            input,
+            textarea {
+                flex: 1;
+                border: none;
+                outline: none;
+                height: 40rpx;
+                line-height: 40rpx;
+            }
+            .label-text {
+                width: 100rpx;
+                .red {
+                    color: #FF552A;
+                }
+            }
+            .input-tips {
+                font-size: 20rpx;
+                color: #999;
+            }
+            &.consult {
+                align-items: start;
+                padding: 20rpx 0 20rpx 30rpx;
+            }
+        }
+    }
+    .address-info {
+        background: #fff;
+        position: relative;
+        padding: 40rpx 0;
+        margin-bottom: 20rpx;
+        min-height: 152rpx;
+        .location {
+            width: 40rpx;
+            height: 40rpx;
+            margin: 0 32rpx 0 22rpx;
+        }
+        .add-icon {
+            width: 36rpx;
+            height: 36rpx;
+            margin-right: 20rpx;
+        }
+        .address-name {
+            font-size: 28rpx;
+            color: #111;
+            font-weight: 600;
+            margin-bottom: 12rpx;
+            text {
+                margin-right: 40rpx;
+            }
+        }
+        .address-detail {
+            font-size: 24rpx;
+            color: #3d3d3d;
+        }
+        &.no-address {
+            justify-content: center;
+            font-size: 28rpx;
+            color: #3d3d3d;
+            &:after {
+                border: none;
+            }
+        }
+        &:after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            right: 30rpx;
+            width: 20rpx;
+            height: 20rpx;
+            border-top: 1px solid #333;
+            border-right: 1px solid #333;
+            transform: rotate(45deg) translateY(-50%);
+        }
+    }
+</style>

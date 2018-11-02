@@ -1,0 +1,351 @@
+<template>
+    <view class="pay-success page" wx:if="{{!loading}}">
+        <view class="order-info" wx:if="{{!(order_info.joined && !order_info.remain_people)}}">
+            <view class="content flex">
+                <image class="goods-img" src="{{order_info.image}}" mode="aspectFill" />
+                <view class="flex" style="flex-direction:column;width:280rpx;">
+                    <view class="group-price">
+                        <view class="current-price">¥<text>{{order_info.current_price}}</text></view>
+                        <view class="origin-price">¥{{order_info.price}}</view>
+                    </view>
+                    <view class="group-tips">
+                        拼团立省{{order_info.save_price}}元
+                    </view>
+                    <view class="group-members flex">
+                        <view class="group-member">
+                            <image class="member-img" src="{{order_info.head_pic}}" mode="aspectFill" />
+                            <view class="member-title">团长</view>
+                        </view>
+                        <view class="group-member">
+                            <image class="member-img" src="../../images/common/user-logo.png" mode="aspectFill" />
+                        </view>
+                    </view>
+                </view>
+            </view>
+            <view class="tips flex">参与拼团·人满发货·不满退款</view>
+        </view>
+        <view class="group-status flex" wx:if="{{!(order_info.joined && !order_info.remain_people)}}">
+            <view class="group-number">
+                支付成功！还差<text>{{order_info.remain_people}}</text>人成团
+            </view>
+            <view class="group-time">
+                <text>{{order_info.time.hour}}:{{order_info.time.min}}:{{order_info.time.sec}}</text>后结束
+            </view>
+        </view>
+        <view class="container flex" wx:if="{{!(order_info.joined && !order_info.remain_people)}}">
+            <button class="btn primary-btn" open-type="share" plain="true">邀请好友参团</button>
+            <view class="tips">分享到群，成团率高达99%</view>
+            <view class="btn" @tap="navigateTo('/pages/order/order_detail_{{order_info.type}}?order_id={{order_info.sub_order_id}}')">查看订单</view>
+        </view>
+        <view class="container flex" wx:else>
+            <image class="success-image" src="http://yimi.artqiyi.com/data/static/applet_images/groupon/icon_success.png" mode="aspectFill" />
+            <view class="success-tips">拼团成功！</view>
+            <view class="btn" @tap="navigateTo('/pages/order/order_detail_{{order_info.type}}?order_id={{order_info.sub_order_id}}')">查看订单</view>
+            <view class="btn" @tap="gotoIndex">去首页</view>
+        </view>
+        <view class="common-section group-list">
+            <view class="common-section-title flex">
+                <view class="content">更多拼团</view>
+            </view>
+            <view class="goods-list vertical-list">
+                <import src="/templates/vertical-goods-item.wxml" />
+                <template is="vertical-goods-item" data="{{item}}" wx:for="{{goods_info.list}}" wx:key="index" />
+                <view class="loading" wx:if="{{goods_info.hasNext || loading}}">正在加载中...</view>
+                <view class="no-data" wx:if="{{goods_info.list.length > 0 && !goods_info.hasNext}}">
+                    没有更多拼团商品了～
+                </view>
+            </view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    import orderService from '../../common/orderService';
+    let startTime = Date.now(),
+        countdownTimeout;
+    export default class Confirm extends wepy.page {
+        renderGoodsRemainTime(realTimeLeft) {
+            let {
+                remain_time,
+                finish_time
+            } = this.order_info;
+            let restTimestamp = remain_time * 1000;
+            if (realTimeLeft >= finish_time * 1000) {
+                startTime = Date.now();
+                realTimeLeft = 0;
+                clearTimeout(countdownTimeout);
+                countdownTimeout = null;
+                this.order_info.remain_people = 0;
+                this.$apply();
+            } else {
+                this.order_info.time = api.format((restTimestamp - realTimeLeft) / 1000);
+                this.$apply();
+            }
+        }
+        fixed() {
+            let realTimeLeft = parseInt(Date.now() - startTime, 10),
+                offset = Date.now() - (startTime + realTimeLeft),
+                nextTime = 1000 - offset;
+            if (nextTime < 0) nextTime = 0;
+            countdownTimeout = setTimeout(() => {
+                this.fixed();
+            }, nextTime);
+            //活动倒计时
+            this.renderGoodsRemainTime(realTimeLeft);
+        }
+        data = {
+            loading: true,
+            order_info: {},
+            goods_info: {
+                loading: false,
+                list: [],
+                page: 1,
+                hasNext: true
+            }
+        };
+        getGoodsList() {
+            if (this.goods_info.loading) return;
+            this.goods_info.loading = true;
+            this.$apply();
+            let uid = wx.getStorageSync('uid'),
+                sdkInfo = wx.getStorageSync('sdk_zbinfo');
+            let data = {
+                page: this.goods_info.page,
+                id: uid,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts,
+                zb_id: api.buid,
+                version: api.version,
+                shop_id: api.shop_id
+            };
+            api.request({
+                url: api.groupon_goods,
+                data: data
+            }).then(json => {
+                json.list.map(item=>{
+                    item.save_price = Math.round((item.price - item.current_price) * 100) / 100;
+                });
+                this.goods_info.list = this.goods_info.list.concat(json.list);
+                this.goods_info.hasNext = json.has_next;
+                this.goods_info.page++;
+                this.goods_info.loading = false;
+                this.$apply();
+                api.loading.hide();
+            }).catch(() => {
+                this.goods_info.loading = false;
+                this.$apply();
+            });
+        }
+        getOrderInfo(order_id) {
+            api.request({
+                url: api.get_groupon_by_order,
+                data: {
+                    order_id: order_id
+                }
+            }).then(json => {
+                json.save_price = Math.round((json.price - json.current_price) * 100) / 100;
+                this.order_info = json;
+                let title = `支付成功`;
+                if (json.joined && !json.remain_people) {
+                    title = "拼团成功";
+                } else {
+                    if (json.remain_time > 0) {
+                        this.fixed();
+                    }
+                    api.setTitle(title);
+                }
+                this.loading = false;
+                this.$apply();
+            });
+        }
+        methods = {
+            gotoDetail(e) {
+                let {
+                    item
+                } = e.currentTarget.dataset;
+                api.navigateTo(`/pages/${item.is_groupon?'groupon':item.type}/detail?goods_id=${item.bid}`);
+            },
+            navigateTo(url) {
+                api.navigateTo(url);
+            },
+            gotoIndex() {
+                wx.reLaunch({
+                    url: `/pages/main/index?shop_id=${api.shop_id}`
+                });
+            }
+        };
+        resetData() {
+            this.loading = true;
+            this.goods_info = {
+                loading: false,
+                list: [],
+                page: 1,
+                hasNext: true
+            }
+            this.$apply();
+        }
+        onReachBottom() {
+            if (!this.goods_info.hasNext) return;
+            this.getGoodsList();
+        }
+        onPullDownRefresh() {
+            this.goods_info = {
+                loading: false,
+                list: [],
+                page: 1,
+                hasNext: true
+            };
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                this.getGoodsList(() => {
+                    wx.stopPullDownRefresh();
+                });
+            });
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+        }
+        onLoad(options) {
+            api.loading.show();
+            this.resetData();
+            api.checkLogin().then(json => {
+                api.from_uid = options.from_uid || api.from_uid;
+                api.shop_id = options.shop_id || parseInt(api.shop_id);
+                this.userInfo = json;
+                this.$apply();
+                let uid = wx.getStorageSync('uid'),
+                    sdkInfo = wx.getStorageSync('sdk_zbinfo');
+                if (!sdkInfo) {
+                    api.request({
+                        url: api.get_sdk_zbinfo,
+                        data: {
+                            uid: uid
+                        }
+                    }).then(json => {
+                        wx.setStorageSync('sdk_zbinfo', json);
+                        this.getGoodsList();
+                        this.getOrderInfo(options.order_id);
+                    });
+                } else {
+                    this.getGoodsList();
+                    this.getOrderInfo(options.order_id);
+                }
+            });
+        }
+        onShareAppMessage(res) {
+            let uid = api.userInfo.is_agency ? api.userInfo.uid : api.from_uid ? api.from_uid : api.userInfo.uid,
+                {
+                    order_id,
+                    group_price,
+                    wname
+                } = this.order_info;
+            console.log(`/pages/groupon/invite?from_uid=${uid}&order_id=${order_id}&shop_id=${api.shop_id}`)
+            return {
+                title: `快来和我一起拼团！${group_price}元购买【${wname}】`,
+                path: `/pages/groupon/invite?from_uid=${uid}&order_id=${order_id}&shop_id=${api.shop_id}`,
+                success: res => {
+                    wx.showToast({
+                        title: '转发成功！'
+                    });
+                },
+                fail: res => {
+                    let msg = '转发失败！';
+                    if (/cancel/ig.test(res.errorMsg) > -1) {
+                        msg = '转发取消！'
+                    }
+                    wx.showToast({
+                        image: '../../images/fail.png',
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>
+<style lang="less">
+    @import "./common.less";
+    .pay-success {
+        .order-info {
+            margin: 40rpx;
+            height: 480rpx;
+            background: #fff;
+            .content {
+                height: 360rpx;
+                padding: 40rpx;
+                .goods-img {
+                    width: 320rpx;
+                    height: 320rpx;
+                    margin-right: 30rpx;
+                }
+                .group-price {
+                    .current-price {
+                        font-size: 36rpx;
+                        text {
+                            font-size: 60rpx;
+                        }
+                    }
+                    .origin-price {
+                        margin: 20rpx auto 0;
+                        text-align: center;
+                    }
+                }
+                .group-tips {
+                    font-size: 24rpx;
+                    padding: 8rpx 16rpx;
+                    border: 1px solid #ff552a;
+                    border-radius: 4rpx;
+                    color: #ff552a;
+                    margin: 30rpx 0;
+                }
+            }
+            .tips {
+                height: 120rpx;
+                border-top: 1px dashed #d8d8d8;
+                position: relative;
+                font-size: 30rpx;
+                color: #333;
+                justify-content: center;
+                &:before,
+                &:after {
+                    content: '';
+                    position: absolute;
+                    top: -10rpx;
+                    width: 20rpx;
+                    height: 20rpx;
+                    border-radius: 50%;
+                    background: #f2f2f2;
+                }
+                &::before {
+                    left: -10rpx;
+                }
+                &:after {
+                    right: -10rpx;
+                }
+            }
+        }
+        .group-list {
+            margin-top: 40rpx;
+            .list-title {
+                justify-content: center;
+                &:before,
+                &::after {
+                    content: '';
+                    width: 40rpx;
+                    height: 2rpx;
+                    background: #999;
+                    margin: 0 16rpx;
+                }
+            }
+        }
+    }
+</style>

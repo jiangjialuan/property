@@ -1,0 +1,371 @@
+<template>
+    <view class="poster-canvas" catchtouchmove='true'>
+        <!-- 底部菜单 -->
+        <view class="bottom-menu">
+            <view class="bottom-menu-bg {{bottomMenuShow?'':'bottom-menu-bg-hidden'}}" @tap.stop="hideBottomMenu"></view>
+            <view class="bottom-menu-item {{bottomMenuShow?'':'bottom-menu-item-hidden'}}">
+                <button open-type="share" @tap.stop="hideBottomMenu" plain>分享给好友</button>
+                <button style="margin-bottom:10rpx" @tap.stop="createPoster" plain>生成海报保存分享</button>
+                <button @tap.stop="hideBottomMenu" plain>取消</button>
+            </view>
+        </view>
+        <!-- 海报 -->
+        <canvas class="canvas {{goodsData.type=='video'?'video-canvas':'goods-canvas'}}" canvas-id="canvas" wx:if="{{showCanvas}}" />
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    export default class Poster extends wepy.component {
+        data = {
+            bottomMenuShow: false,
+            posterImg: '',
+            scale: 0,
+            goodsData: {},
+            logo: '',
+            title: '',
+            goodsImage: '',
+            storeImage: '',
+            qrcodeImage: '',
+            loading: false,
+            showCanvas: false
+        };
+        methods = {
+            // 显示底部菜单
+            showBottomMenu(goodsData) {
+                if (this.loading) return;
+                this.goodsData = goodsData;
+                this.bottomMenuShow = true;
+                this.$apply();
+            },
+            // 隐藏底部菜单
+            hideBottomMenu() {
+                this.bottomMenuShow = false;
+            },
+            // 生成海报
+            createPoster() {
+                this.bottomMenuShow = false;
+                if (this.loading) return;
+                this.loading = true;
+                this.$apply();
+                wx.showLoading({
+                    title: '正在生成'
+                });
+                if (this.posterImg) {
+                    this.loading = false;
+                    this.$apply();
+                    wx.hideLoading();
+                    wx.previewImage({
+                        urls: [this.posterImg]
+                    });
+                    return;
+                }
+                let {
+                    bid,
+                    type
+                } = this.goodsData;
+                this.$emit('getQrcodeImage', bid, type);
+            }
+        };
+        creatPoster(img) {
+            if (!img) {
+                this.loading = false;
+                this.$apply();
+                return;
+            };
+            this.goodsData.qrcodeImage = img;
+            let {
+                type,
+                image,
+                qrcodeImage,
+                title,
+                logo,
+                wname,
+            } = this.goodsData;
+            this.showCanvas = true;
+            this.$apply();
+            // 数据
+            Promise.all([this.getSystemInfo(), this.downloadImg(image, 'goodsImage'), this.downloadImg(logo, 'storeImage'), this.downloadImg(qrcodeImage, 'qrcodeImage')]).then(() => {
+                // 创建画布
+                const ctx = wx.createCanvasContext('canvas');
+                if (type == 'video') {
+                    this.createVideoPoster(ctx);
+                } else {
+                    this.createGoodsPoster(ctx);
+                }
+                // 画
+                ctx.draw(true, (json) => {
+                    wx.canvasToTempFilePath({
+                        canvasId: 'canvas',
+                        success: res => {
+                            wx.previewImage({
+                                urls: [res.tempFilePath]
+                            });
+                            wx.hideLoading();
+                            this.posterImg = res.tempFilePath;
+                            this.loading = false;
+                            this.showCanvas = false;
+                            this.$apply();
+                        }
+                    })
+                });
+            });
+        }
+        // 普通商品海报
+        createGoodsPoster(ctx) {
+            let scale = this.scale;
+            let {
+                type,
+                image,
+                qrcodeImage,
+                group_people,
+                work_year,
+                rank,
+                title,
+                logo,
+                price,
+                wname,
+            } = this.goodsData;
+            // 大背景
+            ctx.setFillStyle('#ffffff');
+            ctx.fillRect(0, 0, 750 * scale, 1037 * scale);
+            // 小背景
+            ctx.setShadow(0, 4 * scale, 16 * scale, 'rgba(0, 0, 0, 0.13)');
+            ctx.fillRect(30 * scale, 30 * scale, 690 * scale, 977 * scale);
+            // 商品图
+            ctx.drawImage(`${type == 'join_consult'?'/images/account/poster_join.png':this.goodsImage}`, 60 * scale, 60 * scale, 630 * scale, 630 * scale);
+            // 拼团人数
+            if (group_people) {
+                ctx.drawImage('/images/groupon/bg_number.png', 60 * scale, 30 * scale, 160 * scale, 60 * scale);
+                ctx.setFillStyle('#ffffff');
+                ctx.setFontSize(28 * scale);
+                ctx.setTextAlign('center');
+                ctx.fillText(`${group_people}人团`, 136 * scale, 70 * scale);
+            }
+            if (type == 'subscribe') {
+                // 商品名
+                ctx.setFillStyle('#333333');
+                ctx.setFontSize(32 * scale);
+                ctx.fillText(wname, 60 * scale, 742 * scale, 630 * scale);
+                ctx.setFillStyle('#999999');
+                ctx.setFontSize(28 * scale);
+                ctx.fillText(`${rank}｜${work_year}年`, 60 * scale, 790 * scale, 630 * scale);
+            } else {
+                if (type == 'join_consult') {
+                    wname = `${title}诚邀您的加盟`;
+                }
+                // 商品名
+                let line1 = '',
+                    line2 = '',
+                    line3 = '';
+                for (let i = 0; i <= wname.length; i++) {
+                    if (this.getByte(line1) < 38) {
+                        line1 += wname.substr(i, 1);
+                    } else if (this.getByte(line2) < 38) {
+                        line2 += wname.substr(i, 1);
+                    } else if (this.getByte(wname) > 76) {
+                        for (let j = 0; j <= line2.length; j++) {
+                            if (this.getByte(line3) < 36) {
+                                line3 += line2.substr(j, 1);
+                            }
+                        }
+                        line2 = line3 + '...';
+                        break;
+                    }
+                }
+                ctx.setFillStyle('#333333');
+                ctx.setFontSize(32 * scale);
+                ctx.setTextAlign('left');
+                ctx.fillText(line1, 60 * scale, 742 * scale, 630 * scale);
+                ctx.fillText(line2, 60 * scale, 790 * scale, 630 * scale);
+            }
+            // 商品价格
+            ctx.setFillStyle('#FF552A');
+            ctx.setFontSize(28 * scale);
+            ctx.fillText(`${(type == 'consult' || type == 'join_consult')?'马上咨询':type == 'subscribe'?`${price}`:`¥${price}`}`, 60 * scale, 850 * scale);
+            // 分隔线
+            ctx.setStrokeStyle('#DCDCDC');
+            ctx.moveTo(60 * scale, 874 * scale);
+            ctx.lineTo(516 * scale, 874 * scale);
+            ctx.stroke();
+            // 店logo
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(92 * scale, 927 * scale, 32 * scale, 0, 2 * Math.PI);
+            ctx.clip();
+            ctx.drawImage(this.storeImage, 60 * scale, 895 * scale, 64 * scale, 64 * scale);
+            ctx.restore();
+            // 店名
+            ctx.setFillStyle('#999999');
+            ctx.setFontSize(28 * scale);
+            ctx.fillText(title, 140 * scale, 941 * scale, 320 * scale);
+            // 二维码
+            ctx.setShadow(0, 0, 0, 'rgba(0, 0, 0, 0)');
+            ctx.drawImage(this.qrcodeImage, 546 * scale, 803 * scale, 144 * scale, 144 * scale);
+            // 二维码文字
+            ctx.setFillStyle('#999999');
+            ctx.setFontSize(24 * scale);
+            ctx.fillText('长按识别了解', 546 * scale, 977 * scale);
+        }
+        // 视频海报
+        createVideoPoster(ctx) {
+            let scale = this.scale;
+            let {
+                type,
+                image,
+                qrcodeImage,
+                title,
+                logo,
+                wname,
+                imageWidth,
+                imageHeight
+            } = this.goodsData;
+            // 大背景
+            ctx.setFillStyle('#ffffff');
+            ctx.fillRect(0, 0, 750 * scale, 796 * scale);
+            // 小背景
+            ctx.setShadow(0, 4 * scale, 16 * scale, 'rgba(0, 0, 0, 0.13)');
+            ctx.fillRect(30 * scale, 30 * scale, 690 * scale, 736 * scale);
+            // 视频图
+            if (imageWidth / imageHeight < 630 / 354) {
+                ctx.drawImage(this.goodsImage, 0, (imageHeight - imageWidth * 354 / 630) / 2, imageWidth, imageWidth * 354 / 630, 60 * scale, 60 * scale, 630 * scale, 354 * scale);
+            } else {
+                ctx.drawImage(this.goodsImage, (imageWidth - imageHeight * 630 / 354) / 2, 0, imageHeight * 630 / 354, imageHeight, 60 * scale, 60 * scale, 630 * scale, 354 * scale);
+            }
+            // 视频播放图标
+            ctx.drawImage('/images/play.png', 335 * scale, 197 * scale, 80 * scale, 80 * scale);
+            // 视频名
+            let line1 = '',
+                line2 = '',
+                line3 = '';
+            for (let i = 0; i <= wname.length; i++) {
+                if (this.getByte(line1) < 38) {
+                    line1 += wname.substr(i, 1);
+                } else if (this.getByte(line2) < 38) {
+                    line2 += wname.substr(i, 1);
+                } else if (this.getByte(wname) > 76) {
+                    for (let j = 0; j <= line2.length; j++) {
+                        if (this.getByte(line3) < 36) {
+                            line3 += line2.substr(j, 1);
+                        }
+                    }
+                    line2 = line3 + '...';
+                    break;
+                }
+            }
+            ctx.setFillStyle('#333333');
+            ctx.setFontSize(32 * scale);
+            ctx.fillText(line1, 60 * scale, 466 * scale, 630 * scale);
+            ctx.fillText(line2, 60 * scale, 514 * scale, 630 * scale);
+            // 分隔线
+            ctx.setStrokeStyle('#DCDCDC');
+            ctx.moveTo(60 * scale, 542 * scale);
+            ctx.lineTo(690 * scale, 542 * scale);
+            ctx.stroke();
+            // 店logo
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(92 * scale, 650 * scale, 32 * scale, 0, 2 * Math.PI);
+            ctx.clip();
+            ctx.drawImage(this.storeImage, 60 * scale, 618 * scale, 64 * scale, 64 * scale);
+            ctx.restore();
+            // 店名
+            ctx.setFillStyle('#999999');
+            ctx.setFontSize(28 * scale);
+            ctx.fillText(title, 140 * scale, 664 * scale, 320 * scale);
+            // 二维码
+            ctx.setShadow(0, 0, 0, 'rgba(0, 0, 0, 0)');
+            ctx.drawImage(this.qrcodeImage, 546 * scale, 563 * scale, 144 * scale, 144 * scale);
+            // 二维码文字
+            ctx.setFillStyle('#999999');
+            ctx.setFontSize(24 * scale);
+            ctx.fillText('长按识别了解', 546 * scale, 736 * scale);
+        }
+        // 缩放倍数
+        getSystemInfo() {
+            return new Promise((resolve, reject) => {
+                wx.getSystemInfo({
+                    success: res => {
+                        this.scale = res.screenWidth / 750;
+                        this.$apply();
+                        resolve();
+                    }
+                })
+            })
+        }
+        // 缓存图片
+        downloadImg(imgUrl, who) {
+            return new Promise((resolve, reject) => {
+                if (imgUrl == 'join_consult') {
+                    resolve();
+                }
+                wx.downloadFile({
+                    url: imgUrl,
+                    success: (res) => {
+                        if (res.statusCode === 200) {
+                            this[who] = res.tempFilePath;
+                            this.$apply();
+                            resolve();
+                        }
+                    }
+                })
+            })
+        }
+        // 获取字符串长度
+        getByte(str) {
+            var char = str.replace(/[^\x00-\xff]/g, '**');
+            return char.length;
+        }
+    }
+</script>
+<style lang="less">
+    .poster-canvas {
+        .bottom-menu {
+            width: 100%;
+            .bottom-menu-bg {
+                height: 100%;
+                width: 100%;
+                background: rgba(0, 0, 0, .6);
+                position: fixed;
+                top: 0;
+                z-index: 999;
+            }
+            .bottom-menu-item {
+                position: fixed;
+                bottom: 0;
+                width: 100%;
+                background: #E6E6E6;
+                transition: .3s;
+                z-index: 999;
+                button {
+                    height: 100rpx;
+                    line-height: 100rpx;
+                    border-radius: 0;
+                    background: #fff;
+                    border: none;
+                    border-bottom:1px solid #E6E6E6;
+                    &:last-child{
+                        border-bottom: none;
+                    }
+                }
+            }
+            .bottom-menu-bg-hidden {
+                display: none;
+            }
+            .bottom-menu-item-hidden {
+                transform: translateY(400rpx);
+            }
+        }
+        .canvas {
+            position: fixed;
+            left: 750rpx;
+        }
+        .goods-canvas {
+            width: 749rpx;
+            height: 1036rpx;
+        }
+        .video-canvas {
+            width: 749rpx;
+            height: 795rpx;
+        }
+    }
+</style>

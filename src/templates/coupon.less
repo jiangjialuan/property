@@ -1,0 +1,60 @@
+.coupon-list {
+    .coupon-item {
+        width: 670rpx;
+        height: 158rpx;
+        background: url(http://yimi.artqiyi.com/data/static/applet_images/coupon/popup-coupon-bg.png);
+        position: relative;
+        margin-bottom: 30rpx;
+        overflow: hidden;
+        color: #fff;
+        background-size: 670rpx 174rpx;
+        &:last-child{
+            margin-bottom: 0
+        }
+        .item-desc {
+            width: 200rpx;
+            height: 118rpx;
+            border-radius: 4rpx;
+            border: 2rpx solid #FDE0AB;
+            margin: 0 20rpx;
+            font-size: 20rpx;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+            padding-left: 20rpx;
+            .item-price {
+                font-size: 28rpx;
+                text {
+                    font-size: 48rpx;
+                }
+                margin-bottom: 10rpx;
+            }
+            
+        }
+        .item-others {
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+            font-size: 20rpx;
+            .item-name {
+                font-size: 28rpx;
+                width: 300rpx;
+            }
+            .use-range{
+                margin: 10rpx 0;
+            }
+        }
+        .item-operate {
+            justify-content: center;
+            color: #FDE0AB;
+            font-size: 32rpx;
+            &.disabled {
+                color: #fff;
+            }
+        }
+        .item-operate {
+            width: 130rpx;
+            height: 100%;
+        }
+    }
+}

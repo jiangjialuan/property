@@ -1,0 +1,340 @@
+<template>
+    <view class="refund-page">
+        <import src="/templates/order_goods_item.wxml" />
+        <view class="loading" wx:if="{{loading}}">正在加载中...</view>
+        <view class="order-detail" wx:else>
+            <view class="order-item shop-item" style="margin-top:0;">
+                <view class="shop-name flex">
+                    <image src="../../images/shop-name.png" class="shop-image" />{{info.order_info.buser_name}}
+                </view>
+                <view>
+                    <template is="goods-item" data="{{item,is_groupon:info.order_info.is_groupon}}" wx:for="{{info.order_info.goods_list}}" wx:key="index"/>
+                    <view class="count">
+                        共 {{info.order_info.num}} 件商品，
+                        <text>总计：</text>¥{{info.order_info.order_money}} <text wx:if="{{info.order_info.shipping}}">(含运费：¥{{info.order_info.shipping}})</text>
+                    </view>
+                </view>
+            </view>
+            <view class="refund-reason">
+                <view class="section-title">退款理由</view>
+                <view class="refund-textarea">
+                    <textarea placeholder="退款理由" maxlength="200" bindinput="input('textareaValue')" />
+                    <view class="reason-num">{{form.textareaValue.length}}/200</view>
+                </view>
+            </view>
+            <view class="return-address" wx:if="{{info.order_info.status == 'receive'}}">
+                <view class="section-title">商品快递寄回</view>
+                <view class="return-address-info" @tap.stop="changeShow">
+                    <view class="{{returnAddressShow?'up':'down'}}">退款需将商品寄回给商家，点击可查看寄件信息</view>
+                    <view class="detail" wx:if="{{returnAddressShow}}">
+                        <view class="column flex">
+                            <view class="label">收货人：</view>
+                            <view class="content">{{refundInfo.refundPerson || '无'}}</view>
+                        </view>
+                        <view class="column flex">
+                            <view class="label">联系方式：</view>
+                            <view class="content">{{refundInfo.refundPhone || '无'}}</view>
+                        </view>
+                        <view class="column flex">
+                            <view class="label">收货地址：</view>
+                            <view class="content">{{refundInfo.refundAddress || '无'}}</view>
+                        </view>
+                    </view>
+                </view>
+            </view>
+            <view class="form-data">
+                <view class="column flex">联系人<input placeholder="请输入联系人姓名" cursor-spacing="60" bindinput="input('nameValue')" /></view>
+                <view class="column flex">联系方式<input placeholder="请输入联系方式" cursor-spacing="10" type="number" maxlength="11" bindinput="input('phoneValue')" /></view>
+                <view class="column flex" wx:if="{{info.order_info.status == 'receive'}}">快递公司<em>*</em><input cursor-spacing="60" placeholder="请输入寄件快递公司" bindinput="input('companyValue')" /></view>
+                <view class="column flex" wx:if="{{info.order_info.status == 'receive'}}">快递单号<em>*</em><input cursor-spacing="60" placeholder="请输入寄件快递运单号" bindinput="input('numberValue')" /></view>
+            </view>
+            <view class="remark-tip">{{info.order_info.status == 'receive' ? '*已发货商品退款需将商品寄回给商家并检测，退款过程中商家可能与您电话沟通，请保持手机通畅' : '*退款过程中商家可能与您电话沟通，请保持手机通畅'}}</view>
+            <view class="remark-tip">*退款金额不包括商品运费</view>
+            <view class="submit-btn" @tap="submit">提交</view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    export default class Refund extends wepy.page {
+        config = {
+            'navigationBarTitleText': '退款申请'
+        };
+        data = {
+            info: {},
+            loading: true,
+            returnAddressShow: false,
+            form: {
+                textareaValue: '',
+                nameValue: '',
+                phoneValue: '',
+                companyValue: '',
+                numberValue: ''
+            },
+            refundInfo: {
+                refundPhone: '',
+                refundPerson: '',
+                refundAddress: ''
+            },
+            submitLoading: false
+        };
+        methods = {
+            changeShow() {
+                if (this.returnAddressShow) {
+                    this.returnAddressShow = false;
+                } else {
+                    this.returnAddressShow = true;
+                }
+                this.$apply();
+            },
+            input(type, e) {
+                this.form[type] = e.detail.value;
+                this.$apply();
+            },
+            submit() {
+                if (this.submitLoading) return;
+                this.submitLoading = true;
+                this.$apply();
+                let {
+                    textareaValue,
+                    nameValue,
+                    phoneValue,
+                    companyValue,
+                    numberValue
+                } = this.form;
+                if (phoneValue && !/^1\d{10}$/.test(phoneValue)) {
+                    this.submitLoading = false;
+                    this.$apply();
+                    return this.showToast('手机号不正确');
+                }
+                if (this.info.order_info.status == 'receive') {
+                    if (!companyValue) {
+                        this.submitLoading = false;
+                        this.$apply();
+                        return this.showToast('请填写快递公司');
+                    } else if (!numberValue) {
+                        this.submitLoading = false;
+                        this.$apply();
+                        return this.showToast('请填写快递单号');
+                    }
+                }
+                api.request({
+                    url: api.refund_apply,
+                    data: {
+                        order_id: this.info.order_info.order_id,
+                        refund_reason: textareaValue,
+                        refund_contact_person: nameValue,
+                        refund_contact_phone: phoneValue,
+                        refund_shipping_name: companyValue,
+                        refund_shipping_sn: numberValue
+                    },
+                    method: 'post'
+                }).then(json => {
+                    this.submitLoading = false;
+                    this.$apply();
+                    api.navigateTo(`/pages/order/success?order_id=${this.order_id}`);
+                }).catch(err => {
+                    this.submitLoading = false;
+                    this.$apply();
+                    this.showToast(err);
+                });
+            }
+        }
+        showToast(msg) {
+            wx.showToast({
+                image: '../../images/fail.png',
+                title: msg
+            });
+        }
+        // 获取订单信息
+        getData() {
+            api.request({
+                url: api.order_detail,
+                data: {
+                    order_id: this.order_id
+                }
+            }).then(json => {
+                this.info = json;
+                this.loading = false;
+                this.$apply();
+            });
+        }
+        // 退款申请页信息
+        getRefundApplyData() {
+            api.request({
+                url: api.refund_apply_info,
+                data: {
+                    order_id: this.order_id
+                }
+            }).then(json => {
+                this.refundInfo.refundPhone = json.refund_info.refund_phone;
+                this.refundInfo.refundPerson = json.refund_info.refund_person;
+                this.refundInfo.refundAddress = json.refund_info.refund_address;
+                this.$apply();
+            });
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+        }
+        onLoad(options) {
+            this.order_id = options.order_id;
+            this.getData();
+            this.getRefundApplyData();
+        }
+    }
+</script>
+<style lang="less">
+    @import 'order.less';
+    .refund-page {
+        .section-title {
+            font-size: 28rpx;
+            line-height: 100rpx;
+            color: #3d3d3d;
+            padding: 0 30rpx;
+        }
+        .refund-reason {
+            background: #fff;
+            padding-bottom: 30rpx;
+            .refund-textarea {
+                width: 690rpx;
+                height: 360rpx;
+                margin: auto;
+                padding: 20rpx;
+                background: #f2f2f2;
+                position: relative;
+                textarea {
+                    width: 650rpx;
+                    height: 292rpx;
+                    margin: auto;
+                }
+                .reason-num {
+                    position: absolute;
+                    right: 12rpx;
+                    bottom: 12rpx;
+                    font-size: 24rpx;
+                    color: #666;
+                    line-height: 1;
+                }
+            }
+        }
+        .return-address {
+            height: 190rpx;
+            background: #fff;
+            margin-top: 20rpx;
+            position: relative;
+            .return-address-info {
+                width: 690rpx;
+                box-sizing: border-box;
+                border-radius: 4rpx;
+                border: 2rpx solid #ff552a;
+                font-size: 24rpx;
+                line-height: 56rpx;
+                color: #ff552a;
+                text-align: center;
+                position: absolute;
+                left: 30rpx;
+                top: 100rpx;
+                background: #fff;
+                z-index: 2;
+                .detail {
+                    padding: 0 30rpx 30rpx;
+                    .column {
+                        font-size: 28rpx;
+                        color: #3d3d3d;
+                        line-height: 42rpx;
+                        text-align: left;
+                        align-items: flex-start;
+                        .label {
+                            width: 140rpx;
+                            height: 42rpx;
+                            text-align: justify;
+                        }
+                        .label:after {
+                            content: '';
+                            display: inline-block;
+                            padding-left: 100%;
+                        }
+                        .content {
+                            max-width: 480rpx;
+                            word-break: break-all;
+                            text-align: justify;
+                        }
+                    }
+                }
+                .down:after {
+                    content: '';
+                    width: 20rpx;
+                    height: 20rpx;
+                    border-right: 2rpx solid #ff552a;
+                    border-bottom: 2rpx solid #ff552a;
+                    border-radius: 2px;
+                    transform: rotate(45deg);
+                    position: absolute;
+                    right: 30rpx;
+                    top: 10rpx;
+                }
+                .up:after {
+                    content: '';
+                    width: 20rpx;
+                    height: 20rpx;
+                    border-right: 2rpx solid #ff552a;
+                    border-bottom: 2rpx solid #ff552a;
+                    border-radius: 2px;
+                    transform: rotate(225deg);
+                    position: absolute;
+                    right: 30rpx;
+                    top: 20rpx;
+                }
+            }
+        }
+        .form-data {
+            background: #fff;
+            margin-top: 20rpx;
+            .column {
+                height: 100rpx;
+                font-size: 28rpx;
+                color: #3d3d3d;
+                padding: 0 30rpx;
+                border-bottom: 1px solid #f2f2f2;
+                justify-content: space-between;
+                &:last-child {
+                    border-bottom: none;
+                }
+                input {
+                    width: 550rpx;
+                    display: inline-block;
+                    text-align: right;
+                }
+                em {
+                    color: #EE4A4A;
+                }
+            }
+        }
+        .remark-tip {
+            font-size: 28rpx;
+            line-height: 42rpx;
+            color: #999;
+            width: 690rpx;
+            margin: 10rpx auto 0;
+        }
+        .submit-btn {
+            width: 690rpx;
+            height: 92rpx;
+            border-radius: 4rpx;
+            background: #ff552a;
+            font-size: 36rpx;
+            color: #fff;
+            line-height: 92rpx;
+            margin: 30rpx auto;
+            text-align: center;
+        }
+    }
+</style>

@@ -1,0 +1,530 @@
+<template>
+    <view class="common-section index-page">
+        <import src="/templates/vertical-goods-item.wxml" />
+        <view class="goods-list vertical-list">
+            <template is="vertical-goods-item" data="{{item}}" wx:for="{{goods_info.list}}" wx:key="index" />
+            <view class="loading" wx:if="{{goods_info.hasNext || loading}}">正在加载中...</view>
+            <view class="no-data" wx:if="{{goods_info.list.length > 0 && !goods_info.hasNext}}">
+                没有更多商品了～
+                <view class="btn-mall" @tap="gotoMall">去逛逛</view>
+            </view>
+            <view class="no-data" wx:if="{{goods_info.list.length == 0 && !goods_info.hasNext}}">
+                <image src="../../images/mall/no-data.png" mode="aspectFill" />
+                <view>暂时木有商品~</view>
+            </view>
+        </view>
+        <shopIndex/>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    import shopIndex from "../../components/shop/index";
+    import cartService from "../../common/cartService";
+    export default class Index extends wepy.page {
+        config = {
+            'enablePullDownRefresh': true,
+        };
+        components = {
+            shopIndex
+        };
+        events = {
+            confirm(json, callback) {
+                let {
+                    data,
+                    type,
+                    goods_type,
+                    url
+                } = json;
+                if (type == "buy") {
+                    api.request({
+                            url: url,
+                            method: "POST",
+                            data: data
+                        })
+                        .then(res => {
+                            callback && callback();
+                            store.set("goods_info", res);
+                            api.navigateTo(`/pages/${goods_type}/confirm?from=buy`);
+                        })
+                        .catch(msg => {
+                            api.showModal(msg);
+                            callback && callback();
+                        });
+                } else {
+                    cartService
+                        .addCart(data.wid, data.sku_id, data.num)
+                        .then(json => {
+                            wx.showToast({
+                                title: "商品已加入购物车"
+                            });
+                            callback && callback();
+                        })
+                        .catch(msg => {
+                            api.showModal(msg);
+                            callback && callback();
+                        });
+                }
+            }
+        };
+        data = {
+            id: '',
+            goods_info: {
+                name: '',
+                list: [],
+                page: 1,
+                hasNext: true
+            },
+            loading: false,
+            userInfo: {}
+        };
+        // 获取商品信息
+        getGoodsInfo(goods_id) {
+            let uid = wx.getStorageSync("uid"),
+                sdkInfo = wx.getStorageSync("sdk_zbinfo");
+            let data = {
+                id: uid,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts
+            };
+            return api.request({
+                url: `${api.goodsDetail}/${goods_id}`,
+                data: data
+            });
+        }
+        openSpec(id, goods_type) {
+            this.getGoodsInfo(id).then(json => {
+                let url = api.buy_now_woxiu,
+                    {
+                        skus,
+                        is_groupon
+                    } = json;
+                if (is_groupon) {
+                    api.navigateTo(`/pages/groupon/detail?goods_id=${id}`);
+                    return;
+                }
+                if (skus && skus.length > 1) {
+                    this.$invoke('shopIndex', 'spec', {
+                        type: goods_type == 'goods' ? 'cart' : 'buy',
+                        url: url,
+                        goods_info: json
+                    });
+                } else {
+                    this.$invoke('shopIndex', 'submit', {
+                        type: goods_type == 'goods' ? 'cart' : 'buy',
+                        url: url,
+                        goods_info: json
+                    });
+                }
+            });
+        }
+        methods = {
+            gotoDetail(e) {
+                let {
+                    item
+                } = e.currentTarget.dataset;
+                api.navigateTo(`/pages/${item.is_groupon?'groupon':item.type}/detail?goods_id=${item.bid}`);
+            },
+            openSpecLink(e) {
+                let {
+                    item
+                } = e.currentTarget.dataset;
+                this.openSpec(item.bid, item.type);
+            },
+            gotoMall() {
+                wx.switchTab({
+                    url: `/pages/mall/index`
+                })
+            },
+            navigateTo(url) {
+                api.navigateTo(url);
+            }
+        };
+        resetData() {
+            this.goods_info = {
+                list: [],
+                page: 1,
+                hasNext: true
+            };
+            this.loading = false;
+            this.userInfo = {};
+            this.$apply();
+        }
+        onReachBottom() {
+            if (!this.goods_info.hasNext) return;
+            this.getGoodsList();
+        }
+        onPullDownRefresh() {
+            this.goods_info = {
+                list: [],
+                page: 1,
+                hasNext: true
+            };
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                this.getGoodsList(() => {
+                    wx.stopPullDownRefresh();
+                });
+            });
+        }
+        getGoodsList(callback) {
+            if (this.loading) return;
+            this.loading = true;
+            this.$apply();
+            let uid = wx.getStorageSync('uid'),
+                sdkInfo = wx.getStorageSync('sdk_zbinfo');
+            let data = {
+                page: this.goods_info.page,
+                album_id: this.id,
+                shop_id: api.shop_id
+            };
+            api.request({
+                url: `${api.baseUrl}/mobile/index/album_goods_list`,
+                data: data
+            }).then(json => {
+                json.list.map(goods => {
+                    if (goods.is_groupon) {
+                        goods.save_price = Math.round((goods.price - goods.current_price) * 100) / 100;
+                    }
+                });
+                this.goods_info.name = json.name;
+                this.goods_info.list = this.goods_info.list.concat(json.list);
+                this.goods_info.hasNext = json.has_next;
+                this.goods_info.page++;
+                this.loading = false;
+                api.setTitle(json.name);
+                this.$apply();
+                api.loading.hide();
+                callback && callback();
+            }).catch(() => {
+                this.loading = false;
+                this.$apply();
+                callback && callback();
+            });
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+        }
+        onLoad(options) {
+            api.loading.show();
+            this.resetData();
+            api.checkLogin().then(json => {
+                api.from_uid = options.from_uid || api.from_uid;
+                api.shop_id = options.shop_id || parseInt(api.shop_id);
+                this.id = options.id;
+                this.userInfo = json;
+                this.$apply();
+                let uid = wx.getStorageSync('uid'),
+                    sdkInfo = wx.getStorageSync('sdk_zbinfo');
+                if (!sdkInfo) {
+                    api.request({
+                        url: api.get_sdk_zbinfo,
+                        data: {
+                            uid: uid
+                        }
+                    }).then(json => {
+                        wx.setStorageSync('sdk_zbinfo', json);
+                        this.getGoodsList();
+                    });
+                } else {
+                    this.getGoodsList();
+                }
+            });
+        }
+        onShareAppMessage(res) {
+            let uid = api.userInfo.is_agency ? api.userInfo.uid : api.from_uid ? api.from_uid : api.userInfo.uid;
+            console.log(`/pages/album_goods/index?from_uid=${uid}&shop_id=${api.shop_id}&id=${this.id}`);
+            return {
+                title: this.goods_info.name,
+                path: `/pages/album_goods/index?from_uid=${uid}&shop_id=${api.shop_id}&id=${this.id}`,
+                success: res => {
+                    wx.showToast({
+                        title: '转发成功！'
+                    });
+                },
+                fail: res => {
+                    let msg = '转发失败！';
+                    if (/cancel/ig.test(res.errorMsg) > -1) {
+                        msg = '转发取消！'
+                    }
+                    wx.showToast({
+                        image: '../../images/fail.png',
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>
+<style lang="less">
+    .group-item {
+        background: #fff;
+        position: relative;
+        padding: 20rpx 30rpx;
+        font-size: 28rpx;
+        .join-number {
+            position: absolute;
+            left: 30rpx;
+            top: 9rpx;
+            text {
+                position: absolute;
+                color: #fff;
+                font-size: 18rpx;
+                left: 6rpx;
+            }
+            &:before {
+                content: '';
+                background: url(http://yimi.artqiyi.com/data/static/applet_images/groupon/bg_number.png);
+                position: absolute;
+                width: 100%;
+                left: 0;
+                height: 100%;
+                background-size: contain;
+                background-repeat: no-repeat;
+            }
+            line-height: 28rpx;
+            width:80rpx;
+            height:28rpx;
+        }
+        .goods-image {
+            width: 200rpx;
+            height: 200rpx;
+        }
+        .goods-info {
+            flex: 1;
+            margin-left: 20rpx;
+            .goods-operate {
+                justify-content: space-between;
+                align-items: flex-end;
+                .buy-btn {
+                    width: 140rpx;
+                    height: 60rpx;
+                    line-height: 60rpx;
+                    background: #ff552a;
+                    border-radius: 4rpx;
+                    text-align: center;
+                    font-size: 24rpx;
+                    color: #fff;
+                }
+            }
+            .goods-title {
+                font-size: 28rpx;
+                color: #333;
+                line-height: 36rpx;
+                margin-top: 12rpx;
+                height: 72rpx;
+            }
+        }
+    }
+    .group-member {
+        position: relative;
+        margin-right: 30rpx;
+        &:first-child {
+            &:before {
+                content: '';
+                background: url(http://yimi.artqiyi.com/data/static/applet_images/groupon/member_bg.png);
+                position: absolute;
+                bottom: 14rpx;
+                width: 88rpx;
+                left: -3rpx;
+                height: 26rpx;
+                background-size: contain;
+                z-index: 1;
+            }
+        }
+        &:last-child {
+            margin-right: 0;
+        }
+        .member-img {
+            width: 80rpx;
+            height: 80rpx;
+            border-radius: 50%;
+        }
+        .member-title {
+            background: #FEB021;
+            font-size: 20rpx;
+            color: #fff;
+            height: 22rpx;
+            line-height: 22rpx;
+            width: 88rpx;
+            position: absolute;
+            bottom: 22rpx;
+            left: -3rpx;
+            text-align: center;
+            z-index: 10;
+        }
+    }
+    .group-status {
+        height: 80rpx;
+        justify-content: space-between;
+        padding: 0 30rpx;
+        font-size: 30rpx;
+        background: #fff;
+        border-bottom: 1px solid #e6e6e6;
+        color: #999;
+        text {
+            color: #ff6061;
+        }
+        &.full {
+            justify-content: center;
+            border-bottom: none;
+        }
+    }
+    .container {
+        background: #fff;
+        justify-content: center;
+        flex-direction: column;
+        padding: 40rpx;
+        .success-image {
+            width: 100rpx;
+            height: 100rpx;
+            margin: 40rpx 0 30rpx;
+        }
+        .success-tips {
+            font-size: 30rpx;
+            color: #333;
+            margin: 0 auto 30rpx;
+        }
+        .tips {
+            font-size: 24rpx;
+            color: #999;
+            margin-top: 10rpx;
+        }
+        .btn {
+            margin: 40rpx 40rpx 0;
+            border-radius: 4rpx;
+            border: 1px solid #ff552a;
+            height: 92rx;
+            line-height: 92rpx;
+            color: #ff552a;
+            font-size: 30rpx;
+            text-align: center;
+            width: 670rpx;
+            &:first-child {
+                margin-top: 0;
+            }
+            &.primary-btn {
+                background: #ff552a;
+                color: #fff;
+            }
+        }
+    }
+    .group-price {
+        .current-price {
+            font-size: 28rpx;
+            color: #ff552a;
+            text {
+                font-size: 36rpx;
+            }
+        }
+        .origin-price {
+            font-size: 20rpx;
+            color: #999;
+            margin-left: 10rpx;
+            position: relative;
+            text-decoration: line-through;
+        }
+    }
+    .group-tips {
+        border: 1px solid #ff552a;
+        border-radius: 4rpx;
+        padding: 3rpx 10rpx;
+        font-size: 18rpx;
+        color: #ff552a;
+        text-align: center;
+        line-height: 28rpx;
+    }
+    .group-others {
+        margin-top: 20rpx;
+        background: #fff;
+        .group-title {
+            height: 88rpx;
+            line-height: 88rpx;
+            text-align: center;
+            font-size: 28rpx;
+            color: #666;
+        }
+        .group-on {
+            margin: 0 30rpx 20rpx;
+            height: 120rpx;
+            position: relative;
+            background: #fff;
+            border-radius: 10rpx;
+            padding: 0 150rpx 0 30rpx;
+            justify-content: space-between;
+            box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, .07);
+            .user-img {
+                width: 80rpx;
+                height: 80rpx;
+                margin-right: 30rpx;
+                border-radius: 50%;
+            }
+            .user-name {
+                font-size: 30rpx;
+                color: #333;
+            }
+            .group-number {
+                font-size: 24rpx;
+                color: #ff552a;
+                margin-bottom: 12rpx;
+                text-align: right;
+            }
+            .group-time {
+                font-size: 24rpx;
+                color: #999;
+                text-align: right;
+            }
+            .btn {
+                position: absolute;
+                right: 0;
+                top: 0;
+                bottom: 0;
+                width: 120rpx;
+                background: linear-gradient(180deg, rgba(255, 216, 69, 1), rgba(254, 176, 33, 1));
+                border-radius: 0 10rpx 10rpx 0;
+                font-size: 36rpx;
+                color: #fff;
+                justify-content: center;
+                &.disable {
+                    background: #ccc;
+                }
+            }
+        }
+        .tips {
+            margin: 30rpx 52rpx 24rpx;
+            width: 613rpx;
+            height: 82rpx;
+        }
+    }
+    .index-page {
+        .goods-list {
+            background: #f2f2f2;
+        }
+        background: #f2f2f2;
+        .no-data {
+            image {
+                width: 200rpx;
+                height: 165rpx;
+                margin-top: 120rpx;
+            }
+        }
+        .btn-mall {
+            margin: 0 60rpx 40rpx;
+            height: 80rpx;
+            line-height: 80rpx;
+            text-align: center;
+            font-size: 30rpx;
+            color: #ff552a;
+            background: #fff;
+        }
+    }
+</style>

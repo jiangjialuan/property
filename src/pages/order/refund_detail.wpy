@@ -1,0 +1,240 @@
+<template>
+    <view class="refund-detail-page">
+        <view class="loading" wx:if="{{loading}}">正在加载中...</view>
+        <view wx:else>
+            <!-- 退款状态 -->
+            <view class="refund-status">
+                <view class="progress">
+                    <view class="flex">
+                        <image src="/images/print/checked.png" />
+                        <view>退款中，请等待商家处理</view>
+                    </view>
+                    <view class="flex">
+                        <image src="{{info.order_info.status == 'refunded' ? '/images/print/checked.png':'/images/print/uncheck.png'}}" />
+                        <view style="{{info.order_info.status == 'refunded' ? '':'color:#999;'}}">退款成功</view>
+                    </view>
+                </view>
+                <view class="status">{{info.order_info.status == 'refunded' ? '您的退款已完成':'您已成功发起退款申请，请耐心等待商家处理'}}</view>
+                <view class="tip">
+                    <view>商家同意或超时未处理，系统将退款给您</view>
+                    <view>如果商家拒绝，您可以修改退款申请后再次发起， 商家会重新处理</view>
+                </view>
+            </view>
+            <!-- 退款信息 -->
+            <view class="refund-info-title">退款信息</view>
+            <view class="order-item shop-item" style="margin:0;border-bottom:none;">
+                <view class="shop-name flex">
+                    <image src="/images/shop-name.png" class="shop-image" />{{info.order_info.buser_name}}
+                </view>
+                <view>
+                    <import src="/templates/order_goods_item.wxml" />
+                    <template is="goods-item" data="{{item,is_groupon:info.order_info.is_groupon}}" wx:for="{{info.order_info.goods_list}}" wx:key="index" />
+                    <view class="count">
+                        共 {{info.order_info.num}} 件商品，
+                        <text>总计：</text>¥{{info.order_info.order_money}}<text wx:if="{{info.order_info.shipping}}"> (含运费：¥{{info.order_info.shipping}})</text>
+                    </view>
+                </view>
+            </view>
+            <view class="refund-info-detail">
+                <view class="column flex">
+                    <view class="label">联系人：</view>
+                    <view class="content">{{refundInfo.refund_contact_person||'无'}}</view>
+                </view>
+                <view class="column flex">
+                    <view class="label">联系方式：</view>
+                    <view class="content">{{refundInfo.refund_contact_phone||'无'}}</view>
+                </view>
+                <view class="column flex">
+                    <view class="label">退款备注：</view>
+                    <view class="content">{{refundInfo.refund_reason||'无'}}</view>
+                </view>
+                <view class="column flex">
+                    <view class="label">退款金额：</view>
+                    <view class="content">￥{{refundInfo.order_money}}</view>
+                </view>
+                <view class="column flex">
+                    <view class="label">申请时间：</view>
+                    <view class="content">{{refundInfo.refund_time}}</view>
+                </view>
+                <view class="column flex" wx:if="{{refundInfo.refund_shipping_name}}">
+                    <view class="label">快递公司：</view>
+                    <view class="content">{{refundInfo.refund_shipping_name}}</view>
+                </view>
+                <view class="column flex" wx:if="{{refundInfo.refund_shipping_sn}}">
+                    <view class="label">物流单号：</view>
+                    <view class="content">{{refundInfo.refund_shipping_sn}}</view>
+                </view>
+                <view class="column flex">
+                    <view class="label">退款编号：</view>
+                    <view class="content">{{refundInfo.sn}}</view>
+                </view>
+            </view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    export default class RefundDetail extends wepy.page {
+        config = {
+            'navigationBarTitleText': '退款详情'
+        };
+        data = {
+            info: {},
+            refundInfo: {},
+            loading: true,
+            order_id: ''
+        };
+        resetData() {
+            this.info = {};
+            this.refundInfo = {};
+            this.loading = true;
+            this.order_id = '';
+            this.$apply();
+        }
+        methods = {}
+        // 获取订单信息
+        getData() {
+            api.request({
+                url: api.order_detail,
+                data: {
+                    order_id: this.order_id || store.get('order_id')
+                }
+            }).then(json => {
+                this.info = json;
+                this.loading = false;
+                this.$apply();
+            });
+        }
+        // 退款详情
+        getRefundData() {
+            api.request({
+                url: api.refund_detail,
+                data: {
+                    order_id: this.order_id || store.get('order_id')
+                }
+            }).then(json => {
+                this.refundInfo = json.order_info;
+                this.$apply();
+            });
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+        }
+        onLoad(options) {
+            this.order_id = options.order_id;
+            this.$apply();
+            this.getData();
+            this.getRefundData();
+        }
+    }
+</script>
+<style lang="less">
+    @import 'order.less';
+    .refund-detail-page {
+        .refund-status {
+            background: #fff;
+            .progress {
+                padding: 8rpx 30rpx;
+                font-size: 30rpx;
+                line-height: 94rpx;
+                color: #333;
+                border-bottom: 1px solid #f2f2f2;
+                position: relative;
+                image {
+                    width: 30rpx;
+                    height: 30rpx;
+                    margin-right: 20rpx;
+                }
+                &>view:first-child:after {
+                    content: '';
+                    width: 1rpx;
+                    height: 56rpx;
+                    border-left: 1px dashed #FF552A;
+                    position: absolute;
+                    left: 44rpx;
+                    top: 74rpx;
+                }
+            }
+            .status {
+                padding: 30rpx;
+                font-size: 28rpx;
+                line-height: 40rpx;
+                color: #3d3d3d;
+            }
+            .tip {
+                width: 690rpx;
+                margin: auto;
+                padding: 30rpx 0 30rpx 26rpx;
+                font-size: 24rpx;
+                line-height: 36rpx;
+                color: #999;
+                border-top: 1px solid #f2f2f2;
+                &>view:first-child {
+                    margin-bottom: 20rpx;
+                }
+                &>view {
+                    width: 528rpx;
+                    position: relative;
+                }
+                &>view:after {
+                    content: '';
+                    width: 14rpx;
+                    height: 14rpx;
+                    border-radius: 50%;
+                    overflow: hidden;
+                    position: absolute;
+                    top: 11rpx;
+                    left: -26rpx;
+                    background: #d8d8d8;
+                }
+            }
+        }
+        .refund-info-title {
+            background: #fff;
+            font-size: 28rpx;
+            line-height: 100rpx;
+            color: #3d3d3d;
+            padding: 0 30rpx;
+            margin-top: 20rpx;
+            border-bottom: 1px solid #f2f2f2;
+        }
+        .refund-info-detail {
+            background: #fff;
+            font-size: 28rpx;
+            color: #3d3d3d;
+            line-height: 42rpx;
+            padding: 30rpx;
+            .column {
+                font-size: 28rpx;
+                color: #3d3d3d;
+                line-height: 42rpx;
+                text-align: left;
+                align-items: flex-start;
+                margin-bottom: 5rpx;
+                .label {
+                    width: 140rpx;
+                    height: 42rpx;
+                    text-align: justify;
+                }
+                .label:after {
+                    content: '';
+                    display: inline-block;
+                    padding-left: 100%;
+                }
+                .content {
+                    max-width: 532rpx;
+                    word-break: break-all;
+                    text-align: justify;
+                }
+            }
+        }
+    }
+</style>

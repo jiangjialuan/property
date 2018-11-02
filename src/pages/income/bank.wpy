@@ -1,0 +1,323 @@
+<template>
+    <view class="bank-page">
+        <view class="tips">
+            银行卡仅用于提现资金入账，请放心填写
+        </view>
+        <view class="input-text flex">
+            <view class="label">持卡人</view>
+            <input type="text" placeholder="请填写您的开户姓名" @input="holderInput" @focus="inputFocus" value="{{card_holder}}" />
+        </view>
+        <view class="input-text flex">
+            <view class="label">开户行</view>
+            <input type="text" placeholder="请填写您的开户银行" @input="nameInput" @focus="inputFocus" value="{{bank_name}}" />
+        </view>
+        <view class="input-text flex">
+            <view class="label">卡号</view>
+            <input type="number" placeholder="请填写您的银行卡号" @input="noInput" @focus="inputFocus" value="{{card_no}}" />
+        </view>
+        <view class="input-text flex phone-input">
+            <view class="label">手机号</view>
+            <view class="label">{{phone}}</view>
+        </view>
+        <view class="input-text flex">
+            <view class="label">验证码</view>
+            <input type="text" placeholder="请输入短信验证码" @input="codeInput" @focus="inputFocus" value="{{ticket_code}}" />
+            <view class="code-btn `{{codeEnable?'':'disable'}}`" @tap="sendVerifyCode">
+                <view wx:if="{{codeText}}">
+                    <text>{{codeText}}</text>s后重试</view>
+                <view wx:else>获取验证码</view>
+            </view>
+        </view>
+        <view class="error-tips">{{errorTips}}</view>
+        <view class="confirm-btn" @tap="submitForm">确认</view>
+    </view>
+</template>
+<script>
+import wepy from "wepy";
+import api from "../../common/api";
+let startTime,
+    countdownTimeout;
+let verifyCodeInterval, disable = true;
+export default class Bank extends wepy.page {
+    fixed(restTimestamp) {
+        let realTimeLeft = parseInt(Date.now() - startTime, 10),
+            offset = Date.now() - (startTime + realTimeLeft),
+            nextTime = 1000 - offset;
+        if (nextTime < 0) nextTime = 0;
+        if (restTimestamp - realTimeLeft < 1000 * 60 * 10) {
+            nextTime = 100;
+        }
+
+        countdownTimeout = setTimeout(() => {
+            this.fixed(restTimestamp);
+        }, nextTime);
+
+        if (realTimeLeft >= restTimestamp) {
+            startTime = Date.now();
+            realTimeLeft = 0;
+            clearTimeout(countdownTimeout);
+            countdownTimeout = null;
+            this.codeText = "";
+            this.codeEnable = true;
+            this.$apply();
+        } else {
+            this.codeText = this.format(restTimestamp - realTimeLeft);
+            this.$apply();
+        }
+    }
+
+    format(time) {
+        let hour = time < 0 ? 0 : parseInt(time / 1000 / 3600),
+            min = time < 0 ? 0 : parseInt((time / 1000 - hour * 3600) / 60),
+            sec = time < 0 ? 0 : parseInt(time / 1000 - hour * 3600 - min * 60);
+        return sec;
+    }
+
+    config = {
+        'navigationBarTitleText': '我的银行卡'
+    };
+
+    data = {
+        codeText: '',
+        errorTips: '',
+        codeEnable: true,
+        verifyCode: '',
+        verifyCodeCount: 60,
+        userInfo: {},
+        phone: "",
+        ticket_code: '',
+        card_no: '',
+        card_holder: '',
+        bank_name: '',
+        id: ''
+    };
+
+    renderTips(msg) {
+        this.errorTips = msg;
+        this.$apply();
+    }
+
+    resetData() {
+        this.clearCodeInterval();
+        this.codeText = '';
+        this.errorTips = '';
+        this.codeEnable = true;
+        this.userInfo = {};
+        this.id = '';
+        this.verifyCode = '';
+        this.phone = '';
+        this.ticket_code = '';
+        this.card_no = '';
+        this.card_holder = '';
+        this.bank_name = '';
+        this.$apply();
+    }
+
+    // 表单验证
+    validateForm() {
+        let ticket_code = this.ticket_code,
+            card_no = this.card_no,
+            card_holder = this.card_holder,
+            bank_name = this.bank_name,
+            tips = "";
+        if (!card_holder) {
+            tips = "持卡人不能为空";
+            return tips;
+        }
+        if (!bank_name) {
+            tips = "开户行不能为空";
+            return tips;
+        }
+        if (!card_no) {
+            tips = "银行卡号不能为空";
+            return tips;
+        }
+        if (!ticket_code) {
+            tips = "手机验证码不能为空";
+            return tips;
+        }
+        return tips;
+    }
+
+    clearCodeInterval() {
+        clearTimeout(countdownTimeout);
+        countdownTimeout = null;
+        this.verifyCodeCount = 60;
+        this.codeEnable = false;
+        this.$apply();
+    }
+
+    getBankInfo() {
+        api.request({
+            url: api.bank_card_info,
+            data: {
+                act: 1,
+                card_id: this.id
+            }
+        }).then(json => {
+            this.card_no = json.card_no;
+            this.bank_name = json.bank_name;
+            this.card_holder = json.card_holder;
+            this.$apply();
+        });
+    }
+
+    methods = {
+        nameInput(e) {
+            this.bank_name = e.detail.value;
+            this.$apply();
+        },
+        holderInput(e) {
+            this.card_holder = e.detail.value;
+            this.$apply();
+        },
+        noInput(e) {
+            this.card_no = e.detail.value;
+            this.$apply();
+        },
+        codeInput(e) {
+            this.ticket_code = e.detail.value;
+            this.$apply();
+        },
+        inputFocus() {
+            this.renderTips("");
+        },
+        // 渲染验证码倒计时
+        renderVerifyCodeText(flag, text) {
+            this.codeEnable = flag;
+            this.$apply();
+        },
+        // 发送验证码
+        sendVerifyCode() {
+            if (!this.codeEnable) return;
+            this.codeEnable = false;
+            this.$apply();
+            let mobile_phone = this.userInfo.mobile_phone;
+            api.request({
+                url: api.send_verification,
+                data: {
+                    act: 7,
+                    mobile_phone: mobile_phone
+                }
+            }).then(data => {
+                startTime = Date.now();
+                countdownTimeout = setTimeout(() => {
+                    this.fixed(this.verifyCodeCount * 1000);
+                }, 0);
+            });
+        },
+        // 提交
+        submitForm() {
+            let mobile_phone = this.userInfo.mobile_phone,
+                ticket_code = this.ticket_code,
+                bank_name = this.bank_name,
+                card_no = this.card_no,
+                card_holder = this.card_holder,
+                tips = this.validateForm(),
+                title = "新增银行卡成功";
+            this.renderTips(tips);
+            if (tips) return;
+            let data = {
+                act: 1,
+                mobile_phone: mobile_phone,
+                card_no: card_no,
+                ticket_code: ticket_code,
+                card_holder: card_holder,
+                bank_name: bank_name
+            }
+            if (this.id) {
+                data.id = this.id;
+                title = "编辑银行卡成功";
+            }
+            api.request({
+                url: api.edit_bank_card,
+                data: data,
+                method: 'POST'
+            }).then(json => {
+                wx.navigateBack();
+            }).catch(msg => {
+                wx.showToast({
+                    image: '../../images/fail.png',
+                    title: msg
+                });
+            });
+        }
+    };
+
+    onShow() {
+        api.getBackgroundColor().then(json => {
+            let { frontColor, backgroundColor, title } = json;
+            api.setBackgroundColor(frontColor, backgroundColor);
+        });
+    }
+
+    onLoad(options) {
+        this.resetData();
+        this.id = options.id || '';
+        this.$apply();
+        api.checkLogin().then(json => {
+            this.userInfo = json;
+            this.phone = json.mobile_phone.substring(0, 3) + "****" + json.mobile_phone.substring(7);
+            if (this.id) {
+                this.getBankInfo();
+            }
+            this.$apply();
+        });
+    }
+}
+
+</script>
+<style lang="less">
+.bank-page {
+    .tips {
+        font-size: 28rpx;
+        color: #999;
+        margin: 32rpx 22rpx 18rpx;
+    }
+    .input-text {
+        height: 100rpx;
+        padding: 0 22rpx;
+        background: #fff;
+        border-bottom: 1px solid #eee;
+        &.phone-input {
+            margin-top: 24rpx;
+        }
+        .label {
+            width: 120rpx;
+            font-size: 30rpx;
+            color: #3d3d3d;
+        }
+        input {
+            flex: 1;
+        }
+    }
+    .error-tips {
+        margin-top: 12rpx;
+        color: #f00;
+        text-align: center;
+        height: 40rpx;
+        font-size: 24rpx;
+    }
+    .code-btn {
+        height: 80rpx;
+        line-height: 80rpx;
+        text-align: center;
+        color: #FF552A;
+        width: 200rpx;
+        font-size: 24rpx;
+        &.disable {
+            color: #666;
+        }
+    }
+    .confirm-btn {
+        margin: 78rpx 75rpx 0;
+        height: 78rpx;
+        line-height: 78rpx;
+        text-align: center;
+        border-radius: 40rpx;
+        background: #FF552A;
+        color: #fff;
+    }
+}
+
+</style>

@@ -1,0 +1,215 @@
+<template>
+    <view class="index-page">
+        <videoList :options='options' />
+        <!--<view wx:if="{{userInfo.is_agency == 0}}">
+            <button class="join-btn flex" open-type="getUserInfo" bindgetuserinfo="userLogin('share')" plain wx:if="{{!userInfo.name}}">
+                <image src="../../images/account/join.png" />
+            </button>
+            <view class="join-btn flex" wx:else @tap="navigateTo('/pages/main/join')">
+                <image src="../../images/account/join.png" />
+            </view>
+        </view>-->
+        <shopIndex/>
+    </view>
+</template>
+<script>
+    import wepy from "wepy";
+    import api from "../../common/api";
+    import store from "../../common/store";
+    import loadCode from "../../common/loadCode";
+    import shopIndex from '../../components/shop/index';
+    import videoList from '../../components/video-list';
+    import cartService from "../../common/cartService";
+    export default class Index extends wepy.page {
+        config = {
+            'navigationBarTitleText': '视频列表',
+            enablePullDownRefresh: true
+        };
+        components = {
+            shopIndex,
+            videoList
+        };
+        events = {
+            getVideoData(page) {
+                api.request({
+                    url: api.short_video_recommend,
+                    data: {
+                        act: 1,
+                        page: page,
+                        buid: api.buid,
+                        version: api.version,
+                        shop_id: api.shop_id
+                    }
+                }).then(json => {
+                    json.list.map(item => {
+                        item.time = api.format(item.length);
+                        item.goods.map(goods => {
+                            let {
+                                type
+                            } = goods;
+                            if (type == 'subscribe') {
+                                goods.star_levels = api.renderStar(goods.star);
+                            }
+                        });
+                    });
+                    this.$invoke('videoList', 'renderData', json);
+                    api.loading.hide();
+                }).catch(msg => {
+                    api.loading.hide();
+                });
+            },
+            confirm(json, callback) {
+                let {
+                    data,
+                    type,
+                    goods_type,
+                    url
+                } = json;
+                if (type == 'buy') {
+                    api.request({
+                        url: url,
+                        method: "POST",
+                        data: data
+                    }).then(res => {
+                        callback && callback();
+                        store.set("goodsInfo", res);
+                        api.navigateTo('/pages/goods/confirm?from=buy');
+                    }).catch(msg => {
+                        api.showModal(msg);
+                        callback && callback();
+                    });
+                } else {
+                    cartService
+                        .addCart(data.wid, data.sku_id, data.num)
+                        .then(json => {
+                            wx.showToast({
+                                title: "已加入购物车"
+                            });
+                            callback && callback();
+                        }).catch(msg => {
+                            api.showModal(msg);
+                            callback && callback();
+                        });
+                }
+            },
+            userLogin(type, e) {
+                api.userLogin(type, e).then(json => {
+                    let data = json.data.data;
+                    this.userInfo = data;
+                    this.$apply();
+                    if (type == 'share') {
+                        wx.navigateTo({
+                            url: `/pages/main/join`
+                        });
+                    }
+                });
+            },
+            openSpec(id, goods_type) {
+                this.getGoodsInfo(id).then(json => {
+                    let url = api.buy_now_woxiu,
+                        {
+                            skus,
+                            wid,
+                            best_sku
+                        } = json;
+                    if (skus && skus.length > 1) {
+                        this.$invoke('shopIndex', 'spec', {
+                            type: goods_type == 'goods' ? 'cart' : 'buy',
+                            url: url,
+                            goods_info: json
+                        });
+                    } else {
+                        this.$invoke('shopIndex', 'submit', {
+                            type: goods_type == 'goods' ? 'cart' : 'buy',
+                            url: url,
+                            goods_info: json
+                        });
+                    }
+                });
+            },
+            navigateTo(url) {
+                api.navigateTo(url);
+            }
+        };
+        data = {
+            options: {
+                showTitle: false
+            },
+            title: '',
+            userInfo: {}
+        };
+        // 获取商品信息
+        getGoodsInfo(goods_id) {
+            let id = wx.getStorageSync("uid"),
+                sdkInfo = wx.getStorageSync("sdk_zbinfo");
+            let data = {
+                id: id,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts
+            };
+            return api.request({
+                url: `${api.goodsDetail}/${goods_id}`,
+                data: data
+            });
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+        }
+        onLoad(options) {
+            api.loading.show();
+            api.checkLogin().then(json => {
+                api.from_uid = options.from_uid || api.from_uid;
+                api.shop_id = options.shop_id || parseInt(api.shop_id);
+                this.userInfo = json;
+                this.$invoke('videoList', 'getVideoData');
+            });
+            let mta = require("../../common/mta_analysis.js");
+            mta.Page.init();
+            loadCode.getCode();
+        }
+        onReachBottom() {
+            this.$invoke('videoList', 'getVideoData');
+        }
+        onPullDownRefresh() {
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                this.$invoke('videoList', 'getVideoData', () => {
+                    wx.stopPullDownRefresh();
+                });
+            });
+        }
+        onShareAppMessage(res) {
+            let uid = api.userInfo.is_agency ? api.userInfo.uid : api.from_uid ? api.from_uid : api.userInfo.uid,
+                title = this.title,
+                path = `/pages/video/index?from_uid=${uid}&shop_id=${api.shop_id}`;
+            console.log(`/pages/video/index?from_uid=${uid}&shop_id=${api.shop_id}`);
+            return {
+                title: title,
+                path: path,
+                success: res => {
+                    wx.showToast({
+                        title: "转发成功！"
+                    });
+                },
+                fail: res => {
+                    let msg = "转发失败！";
+                    if (/cancel/gi.test(res.errorMsg) > -1) {
+                        msg = "转发取消！";
+                    }
+                    wx.showToast({
+                        image: "../../images/fail.png",
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>

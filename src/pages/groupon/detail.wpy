@@ -1,0 +1,609 @@
+<template>
+    <view class="goods-detail page" wx:if="{{!loading}}">
+        <import src="../../common/wxParse/wxParse.wxml" />
+        <import src="../../templates/goods_detail.wxml" />
+        <view style="position: relative;">
+            <template is="goods_detail" data="{{goods_info}}" />
+            <view class="deadline flex">
+                <view class="time flex">距结束仅剩<text class="flex">{{goods_info.time.day}}</text>天<text class="flex">{{goods_info.time.hour}}</text>时<text class="flex">{{goods_info.time.min}}</text>分<text class="flex">{{goods_info.time.sec}}</text>秒</view>
+                <view class="num">{{goods_info.group_people}}人团</view>
+            </view>
+        </view>
+        <view class="group-others">
+            <view class="group-title" wx:if="{{group_list.length}}">有小伙伴在拼团，可直接参与</view>
+            <view class="group-on flex" wx:for="{{group_list}}" wx:key="index" wx:for-index="index" wx:for-item="item">
+                <view class="flex">
+                    <image class='user-img' src="{{item.head_pic}}" />
+                    <view class="user-name">{{item.username}}</view>
+                </view>
+                <view wx:if="{{!item.disable}}">
+                    <view class="group-number">还差{{item.remain_people}}人成团</view>
+                    <view class="group-time">剩余 {{item.time.day}}:{{item.time.hour}}:{{item.time.min}}:{{item.time.sec}}</view>
+                </view>
+                <view wx:else>
+                    <view class="group-number">拼团已结束</view>
+                </view>
+                <view class="btn flex {{item.disable?'disable':''}}" @tap="joinGroup({{item.disable}},'{{item.id}}')">参团</view>
+            </view>
+            <image class='tips' src="http://yimi.artqiyi.com/data/static/applet_images/groupon/tips.png" mode="aspectFit" />
+        </view>
+        <view class="pull-up">
+            <image src="../../images/mall/detail.png" />详情
+        </view>
+        <view class="detail-content">
+            <template is="wxParse" data="{{wxParseData:detailContent.nodes}}" />
+            <view class="detail-images">
+                <block wx:for="{{goods_info.detail_images}}" wx:key="index" wx:for-index="index" wx:for-item="item">
+                    <image src="{{item}}" class="goods-img" mode="widthFix" />
+                </block>
+            </view>
+        </view>
+        <view class="page-footer">
+            <button class="footer-item flex wechat" session-from="{{shop_id}}" open-type="contact" plain="true" wx:if="{{userInfo.name}}">
+                    <image src="../../images/mall/wechat.png" mode="widthFix" />
+                    <p>客服</p>
+                </button>
+            <button class="footer-item flex wechat" wx:else open-type="getUserInfo" bindgetuserinfo="userLogin('login')" plain="true">
+                    <image src="../../images/mall/wechat.png" mode="widthFix" />
+                    <p>客服</p>
+                </button>
+            <view class="footer-item flex" @tap="gotoIndex">
+                <image src="../../images/shop-logo.png" mode="widthFix" /> 商城
+            </view>
+            <view class="footer-item flex shop" @tap="navigateTo('/pages/groupon/index')">
+                <image src="http://yimi.artqiyi.com/data/static/applet_images/groupon/more.png" mode="widthFix" /> 更多拼团
+            </view>
+            <view class="flex flex-item" wx:if="{{disable}}">
+                <view class="btn disable-btn flex" disable="{{loading || disable}}">已售罄</view>
+            </view>
+            <view class="flex flex-item" wx:else>
+                <view class="btn buy-now flex" @tap="openSpec(0,'')" disable="{{loading}}">
+                    ￥{{goods_info.price}}
+                    <text class="tips">单独购买</text>
+                </view>
+                <view class="btn group-btn flex" @tap="openSpec(1,'')" disable="{{loading}}">
+                    ￥{{goods_info.current_price}}
+                    <text class="tips">{{goods_info.group_people}}人拼团</text>
+                </view>
+            </view>
+        </view>
+        <!--<view wx:if="{{userInfo.is_agency == 0}}">
+            <button class="join-btn flex" style="bottom: 282rpx" open-type="getUserInfo" bindgetuserinfo="userLogin('share')" plain wx:if="{{!userInfo.name}}">
+                    <image src="../../images/account/join.png" />
+                </button>
+            <view class="join-btn flex" style="bottom: 282rpx" wx:else @tap="navigateTo('/pages/main/join')">
+                <image src="../../images/account/join.png" />
+            </view>
+        </view>-->
+        <image class="go-to-top-btn" style="bottom: 152rpx" src="/images/go_to_top.png" wx:if="{{goToTopBtnShow}}" @tap.stop="pageScrollTo(0)" />
+        <shopIndex />
+        <Poster />
+    </view>
+</template>
+<script>
+    import wepy from "wepy";
+    import store from "../../common/store";
+    import api from "../../common/api";
+    import WxParse from "../../common/wxParse/wxParse";
+    import cartService from "../../common/cartService";
+    import shopIndex from '../../components/shop/index';
+    import loadCode from "../../common/loadCode";
+    import Poster from '../../components/yunmi-poster';
+    let startTime = Date.now(),
+        countdownTimeout;
+    export default class Detail extends wepy.page {
+        renderGoodsRemainTime(realTimeLeft) {
+            let {
+                remain_time,
+                bid,
+                type
+            } = this.goods_info;
+            let restTimestamp = remain_time * 1000;
+            if (realTimeLeft >= restTimestamp) {
+                startTime = Date.now();
+                realTimeLeft = 0;
+                clearTimeout(countdownTimeout);
+                countdownTimeout = null;
+                api.navigateTo(`/pages/${type}/detail?goods_id=${bid}`);
+            } else {
+                this.goods_info.time = api.format((restTimestamp - realTimeLeft) / 1000);
+                this.$apply();
+            }
+        }
+        renderOtherRemainTime(realTimeLeft) {
+            this.group_list.map(item => {
+                item.disable = false;
+                let restTimestamp = item.remain_time * 1000;
+                if (realTimeLeft >= item.finish_time * 1000) {
+                    item.disable = true;
+                } else {
+                    item.time = api.format((restTimestamp - realTimeLeft) / 1000);
+                }
+            });
+            this.$apply();
+        }
+        fixed() {
+            let realTimeLeft = parseInt(Date.now() - startTime, 10),
+                offset = Date.now() - (startTime + realTimeLeft),
+                nextTime = 1000 - offset;
+            if (nextTime < 0) nextTime = 0;
+            countdownTimeout = setTimeout(() => {
+                this.fixed();
+            }, nextTime);
+            //活动倒计时
+            this.renderGoodsRemainTime(realTimeLeft);
+            if (this.group_list.length) {
+                //其他倒计时
+                this.renderOtherRemainTime(realTimeLeft);
+            }
+        }
+        components = {
+            shopIndex,
+            Poster
+        };
+        events = {
+            confirm(json, callback) {
+                let {
+                    data,
+                    type,
+                    goods_type,
+                    url
+                } = json;
+                api.request({
+                    url: url,
+                    method: "POST",
+                    data: data
+                }).then(res => {
+                    callback && callback();
+                    store.set("goods_info", res);
+                    api.navigateTo(`/pages/${goods_type}/confirm?from=buy&is_groupon=${this.is_groupon}`);
+                }).catch(msg => {
+                    api.showModal(msg);
+                    callback && callback();
+                });
+            },
+            getQrcodeImage(id, type) {
+                api.getQrcodeImage(id, type).then(res => {
+                    this.$invoke('Poster', 'creatPoster', res.url);
+                }).catch(msg => {
+                    this.$invoke('Poster', 'creatPoster', '');
+                    wx.hideLoading();
+                    api.showModal(msg);
+                });
+            }
+        };
+        data = {
+            logo: '',
+            title: '',
+            goods_id: '',
+            group_list: [],
+            goods_info: {},
+            loading: true,
+            userInfo: {},
+            notFound: false,
+            disable: false,
+            shop_id: '',
+            type: "groupon",
+            windowHeight: 0,
+            goToTopBtnShow: false,
+        };
+        resetData() {
+            this.loading = true;
+            this.goods_id = '';
+            this.group_list = [];
+            this.userInfo = {};
+            this.goods_info = {};
+            this.type = "";
+            this.notFound = false;
+            this.disable = false;
+            this.$apply();
+        }
+        openSpec(groupon_id) {
+            let {
+                wid,
+                wname,
+                skus,
+                shipping,
+                images,
+                best_sku,
+                attributes,
+                price,
+                type,
+                group_price
+            } = this.goods_info, goods_info = {
+                wid,
+                wname,
+                shipping,
+                images,
+                best_sku,
+                attributes,
+                type,
+                current_price: price,
+                skus: []
+            }, url = api.buy_now_woxiu;
+            if (this.is_groupon == 1) {
+                goods_info.current_price = group_price;
+            }
+            skus.map(item => {
+                let {
+                    sku_id,
+                    image,
+                    price,
+                    values,
+                    stock,
+                    group_price,
+                    group_stock
+                } = item;
+                let sku_item = {
+                    sku_id,
+                    image,
+                    current_price: price,
+                    values,
+                    stock
+                };
+                if (this.is_groupon == 1) {
+                    sku_item.stock = group_stock;
+                    sku_item.current_price = group_price;
+                    url = api.buy_now_groupon;
+                }
+                goods_info.skus.push(sku_item);
+            });
+            if (skus.length > 1) {
+                this.$invoke('shopIndex', 'spec', {
+                    type: 'buy',
+                    url: url,
+                    form: {
+                        groupon_id: groupon_id
+                    },
+                    goods_info: goods_info
+                });
+            } else {
+                this.$invoke('shopIndex', 'submit', {
+                    type: 'buy',
+                    url: url,
+                    form: {
+                        groupon_id: groupon_id
+                    },
+                    goods_info: goods_info
+                });
+            }
+        }
+        methods = {
+            pageScrollTo(px) {
+                api.pageScrollTo(px)
+            },
+            showBottomMenu() {
+                let {
+                    images,
+                    group_people,
+                    wname,
+                    current_price,
+                    type,
+                    bid
+                } = this.goods_info;
+                this.$invoke('Poster', 'showBottomMenu', {
+                    bid,
+                    image: images[0],
+                    group_people: group_people || 0,
+                    wname,
+                    price: current_price,
+                    type,
+                    title: this.title,
+                    logo: this.logo
+                });
+            },
+            joinGroup(disable, groupon_id) {
+                if (disable) return;
+                this.is_groupon = 1;
+                this.openSpec(groupon_id);
+            },
+            navigateTo(url) {
+                api.navigateTo(url);
+            },
+            userLogin(type, e) {
+                api.userLogin(type, e).then(json => {
+                    let data = json.data.data;
+                    this.userInfo = data;
+                    this.$apply();
+                    if (type == 'share') {
+                        wx.navigateTo({
+                            url: `/pages/main/join`
+                        });
+                    }
+                });
+            },
+            gotoCart() {
+                wx.redirectTo({
+                    url: `/pages/mall/cart`
+                });
+            },
+            gotoIndex() {
+                wx.switchTab({
+                    url: `/pages/mall/index`
+                });
+            },
+            openSpec(is_groupon, groupon_id) {
+                this.is_groupon = is_groupon;
+                this.openSpec(groupon_id);
+            }
+        };
+        renderDetailContent() {
+            WxParse.wxParse("detailContent", "html", this.goods_info.content, this, 0);
+        }
+        onPageScroll(e) {
+            if (this.windowHeight) {
+                this.goToTopBtnShow = e.scrollTop >= this.windowHeight;
+                this.$apply();
+            }
+        }
+        onLoad(options) {
+            api.loading.show();
+            this.resetData();
+            loadCode.getCode();
+            let finalId = options.goods_id,
+                shop_id = '',
+                scene = decodeURIComponent(options.scene);
+            if (scene != 'undefined') {
+                let sceneObj = {};
+                scene.split(',').map(item => {
+                    let value = item.split(':');
+                    sceneObj[value[0]] = value[1];
+                });
+                finalId = sceneObj.bid;
+                shop_id = sceneObj.shop_id;
+            }
+            api.checkLogin().then(json => {
+                api.from_uid = options.from_uid || api.from_uid;
+                api.shop_id = shop_id || options.shop_id || parseInt(api.shop_id);
+                this.shop_id = api.shop_id;
+                this.userInfo = json;
+                this.windowHeight = wx.getSystemInfoSync().windowHeight;
+                this.$apply();
+                let uid = wx.getStorageSync("uid"),
+                    sdkInfo = wx.getStorageSync("sdk_zbinfo");
+                if (!sdkInfo) {
+                    api.request({
+                            url: api.get_sdk_zbinfo,
+                            data: {
+                                uid: uid
+                            }
+                        })
+                        .then(res => {
+                            wx.setStorageSync("sdk_zbinfo", res);
+                            this.getGoodsInfo(finalId);
+                        });
+                } else {
+                    this.getGoodsInfo(finalId);
+                }
+            });
+        }
+        onUnload() {
+            startTime = Date.now();
+            clearTimeout(countdownTimeout);
+            countdownTimeout = null;
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    logo,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+                this.title = title;
+                this.logo = logo;
+                this.$apply();
+            });
+        }
+        // 获取正在进行的拼团
+        getGrouponList() {
+            let {
+                id
+            } = this.goods_info;
+            api.request({
+                url: `${api.groupon_list}`,
+                data: {
+                    id: id,
+                    shop_id: api.shop_id
+                }
+            }).then(json => {
+                this.group_list = json;
+                this.$apply();
+            });
+        }
+        // 获取商品信息
+        getGoodsInfo(goods_id) {
+            let id = wx.getStorageSync("uid"),
+                sdkInfo = wx.getStorageSync("sdk_zbinfo");
+            let data = {
+                id: id,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts
+            };
+            api.request({
+                url: `${api.grouponDetail}/${goods_id}`,
+                data: data
+            }).then(json => {
+                json.save_price = Math.round((json.price - json.current_price) * 100) / 100;
+                this.goods_info = json;
+                store.set("currentGoodsData", json);
+                let availableSku = this.goods_info.skus.filter(sku => sku.stock > 0);
+                this.disable = availableSku.length == 0;
+                this.loading = false;
+                this.$apply();
+                this.renderDetailContent();
+                api.loading.hide();
+                wx.setNavigationBarTitle({
+                    title: json.wname
+                });
+                this.getGrouponList();
+                if (this.goods_info.remain_time > 0) {
+                    countdownTimeout = setTimeout(() => {
+                        this.fixed();
+                    }, 0);
+                }
+            }).catch(json => {
+                api.showModal('拼团已结束', () => {
+                    wx.redirectTo({
+                        url: `/pages/groupon/index`
+                    });
+                });
+                api.loading.hide();
+                this.$apply();
+            });
+        }
+        onShareAppMessage() {
+            let uid = this.userInfo.is_agency ?
+                this.userInfo.uid :
+                api.from_uid ? api.from_uid : this.userInfo.uid;
+            let {
+                wname,
+                bid,
+                images,
+                group_price
+            } = this.goods_info;
+            console.log(`/pages/groupon/detail?goods_id=${bid}&from_uid=${uid}&shop_id=${api.shop_id}`);
+            return {
+                title: `【¥${group_price}】${wname}`,
+                path: `/pages/groupon/detail?goods_id=${bid}&from_uid=${uid}&shop_id=${api.shop_id}`,
+                imageUrl: images[0],
+                success: res => {
+                    wx.showToast({
+                        title: "转发成功！"
+                    });
+                },
+                fail: res => {
+                    let msg = "转发失败！";
+                    if (/cancel/gi.test(res.errorMsg) > -1) {
+                        msg = "转发取消！";
+                    }
+                    wx.showToast({
+                        image: "../../images/fail.png",
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>
+<style lang="less">
+    @import "../../common/wxParse/wxParse.wxss";
+    @import "./common.less";
+    @import "../../templates/goods_detail.less";
+    .goods-detail {
+        background: #f2f3f4;
+        padding-bottom: 96rpx;
+        .detail-content {
+            background: #fff;
+            img {
+                max-width: 100%;
+            }
+        }
+        .goods-spec {
+            margin-top: 18rpx;
+            height: 100rpx;
+            background: #fff;
+            padding: 0 24rpx;
+            font-size: 28rpx;
+            color: #3d3d3d;
+            line-height: 100rpx;
+            .checked-txt {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                line-height: 100rpx;
+                width: 600rpx;
+            }
+            .arrow {
+                width: 90rpx;
+                height: 90rpx;
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                &:before {
+                    display: block;
+                    content: "";
+                    width: 20rpx;
+                    height: 20rpx;
+                    border-top: 2rpx solid #999;
+                    border-right: 2rpx solid #999;
+                    transform: rotate(45deg);
+                }
+            }
+        }
+        .pull-up {
+            font-size: 24rpx;
+            text-align: center;
+            line-height: 58rpx;
+            color: #999;
+            background: #f2f2f2;
+            image {
+                width: 32rpx;
+                height: 26rpx;
+                vertical-align: middle;
+                margin: 0 12rpx;
+            }
+            &:before,
+            &:after {
+                content: "";
+                width: 100rpx;
+                display: inline-block;
+                height: 1rpx;
+                background: #999;
+                vertical-align: middle;
+            }
+        }
+        .shop-link {
+            display: none;
+            width: 160rpx;
+            height: 80rpx;
+            text-align: center;
+            .shop-link-icon {
+                display: block;
+                margin: 5rpx auto 0;
+                width: 40rpx;
+                height: 40rpx;
+            }
+            .shop-link-text {
+                display: block;
+                margin: 0 auto;
+                font-size: 20rpx;
+            }
+        }
+        .detail-content {
+            padding: 0 10rpx;
+            image {
+                width: 100%;
+                display: block;
+            }
+        }
+        .copied-icon {
+            width: 32rpx;
+            height: 32rpx;
+            vertical-align: middle;
+            margin-right: 12rpx;
+        }
+        .btn.buy-now {
+            border-left: 1px solid #e6e6e6;
+            color: #ff552a;
+        }
+        .btn.group-btn {
+            color: #fff;
+            background-color: #FF552A;
+        }
+        .not-found {
+            text-align: center;
+            image {
+                margin: 282rpx auto 40rpx;
+                width: 200rpx;
+                height: 200rpx;
+            }
+            .tips {
+                font-size: 28rpx;
+                color: #999;
+            }
+        }
+    }
+</style>

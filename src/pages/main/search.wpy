@@ -1,0 +1,221 @@
+<template>
+    <view class="search-page" wx:if="{{!loading}}">
+        <import src="/templates/horizontal-goods-item.wxml" />
+        <view class="search-bar flex" style="background: {{backgroundColor}};">
+            <view class="search-area flex" style="{{backgroundColor=='#ffffff'?'background: #f0f0f0;':''}}">
+                <image class="search-icon" src="/images/search_icon.png" />
+                <input class="search-input" placeholder-style="{{backgroundColor=='#ffffff'?'color: #bebebe;':''}}" value="{{inputValue}}" placeholder="{{placeholder}}" focus="true" confirm-type="search" bindfocus="searchDeleteShow" bindblur="searchDeleteHide" bindinput="inputValue"
+                    bindconfirm="search" style="{{backgroundColor=='#ffffff'?'color: #bebebe;':''}}"/>
+                <view class="search-delete" @tap="clearInput" wx:if="{{searchDeleteShow && inputValue}}">
+                    <image src="/images/search_delete.png" />
+                </view>
+            </view>
+            <view class="search-btn" style="{{backgroundColor=='#ffffff'?'color: #666;':''}}" @tap="search">搜索</view>
+        </view>
+        <view class="common-section">
+            <view class="goods-list" wx:if="{{goods_info.list}}">
+                <view class="flex" style="justify-content:space-between;flex-wrap: wrap;">
+                    <template is="horizontal-goods-item" data="{{item}}" wx:for="{{goods_info.list}}" wx:key="index" />
+                </view>
+                <view class="loading" wx:if="{{goods_info.has_next && loading}}">正在加载中...</view>
+                <view class="no-data" wx:if="{{goods_info.list.length > 0 && !goods_info.has_next}}">没有更多数据了</view>
+                <view class="no-data" wx:if="{{goods_info.list.length == 0 && !goods_info.has_next}}">
+                    <image src="/images/mall/no-data.png" mode="aspectFill" />
+                    <view>暂时木有商品~</view>
+                </view>
+            </view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import api from '../../common/api';
+    export default class Search extends wepy.page {
+        config = {
+            'navigationBarTitleText': '搜索'
+        };
+        data = {
+            frontColor: '',
+            backgroundColor: '',
+            placeholder: '搜索热门商品',
+            inputValue: '',
+            searchDeleteShow: true,
+            loading: false,
+            goods_info: {
+                loading: false,
+                list: [],
+                page: 1,
+                has_next: true
+            },
+        };
+        methods = {
+            gotoDetail(e) {
+                let {
+                    item
+                } = e.currentTarget.dataset;
+                api.navigateTo(`/pages/${item.is_groupon?'groupon':item.type}/detail?goods_id=${item.bid}`);
+            },
+            // 输入
+            inputValue(e) {
+                this.inputValue = e.detail.value;
+                this.$apply();
+            },
+            // 清空输入按钮的显示
+            searchDeleteShow() {
+                this.searchDeleteShow = true;
+                this.$apply();
+            },
+            // 清空输入按钮的隐藏
+            searchDeleteHide() {
+                this.searchDeleteShow = false;
+                this.$apply();
+            },
+            // 清空输入
+            clearInput() {
+                this.inputValue = '';
+                this.$apply();
+            },
+            // 搜索
+            search() {
+                this.goods_info = {
+                    loading: false,
+                    list: [],
+                    page: 1,
+                    has_next: true
+                };
+                this.$apply();
+                this.search();
+            },
+            // 跳转
+            navigateTo(url) {
+                api.navigateTo(url);
+            },
+        }
+        search() {
+            if (this.goods_info.loading) return;
+            api.loading.show();
+            this.goods_info.loading = true;
+            this.$apply();
+            let uid = wx.getStorageSync('uid'),
+                sdkInfo = wx.getStorageSync('sdk_zbinfo');
+            let data = {
+                page: this.goods_info.page,
+                id: uid,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts,
+                zb_id: api.buid,
+                version: api.version,
+                key: this.inputValue,
+                shop_id: api.shop_id
+            };
+            api.request({
+                url: api.goods,
+                data: data
+            }).then(json => {
+                this.goods_info.list = this.goods_info.list.concat(json.list);
+                this.goods_info.has_next = json.has_next;
+                this.goods_info.page++;
+                api.loading.hide();
+                this.goods_info.loading = false;
+                this.loading = false;
+                this.$apply();
+            }).catch(() => {
+                api.loading.hide();
+                this.goods_info.loading = false;
+                this.loading = false;
+                this.$apply();
+            });
+        }
+        onReachBottom() {
+            if (!this.goods_info.has_next) return;
+            this.search();
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+                this.frontColor = frontColor;
+                this.backgroundColor = backgroundColor;
+                this.$apply();
+            });
+        }
+        onLoad() {
+            api.checkLogin().then(json => {
+                api.userInfo = json;
+                this.$apply();
+            });
+        }
+    }
+</script>
+<style lang="less">
+    .search-page {
+        .search-bar {
+            width: 100%;
+            height: 104rpx;
+            position: fixed;
+            top: 0;
+            z-index: 1;
+            .search-area {
+                width: 596rpx;
+                height: 64rpx;
+                border-radius: 64rpx;
+                background: rgba(255, 255, 255, .2);
+                margin-left: 30rpx;
+                .search-icon {
+                    width: 36rpx;
+                    height: 36rpx;
+                    margin-left: 20rpx;
+                }
+                .search-input {
+                    width: 448rpx;
+                    font-size: 28rpx;
+                    color: #666;
+                    margin-left: 12rpx;
+                    line-height: 1;
+                }
+                .search-delete {
+                    width: 80rpx;
+                    height: 64rpx;
+                    image {
+                        width: 36rpx;
+                        height: 36rpx;
+                        margin-left: 24rpx;
+                        margin-top: 15rpx;
+                    }
+                }
+                .input-placeholder {
+                    font-size: 28rpx;
+                    color: rgba(255, 255, 255, .5);
+                    line-height: 1;
+                }
+            }
+            .search-btn {
+                width: 125rpx;
+                height: 80rpx;
+                font-size: 32rpx;
+                line-height: 80rpx;
+                color: #fff;
+                text-align: center;
+            }
+        }
+        .no-data {
+            image {
+                width: 200rpx;
+                height: 165rpx;
+            }
+        }
+        .common-section {
+            margin-top: 114rpx;
+            padding: 30rpx 30rpx 0;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            .goods-item{
+                margin-bottom: 30rpx;
+            }
+        }
+    }
+</style>

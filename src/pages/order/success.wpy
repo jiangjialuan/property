@@ -1,0 +1,86 @@
+<template>
+    <view class="success-page flex">
+        <icon type="success" size="95" />
+        <view class="tip1">提交成功</view>
+        <view class="tip2">退款申请提交成功，点击查看详情可了解退款进度</view>
+        <view class="btn btn1" @tap="gotoRefundDetail">查看详情</view>
+        <view class="btn btn2" @tap="gotoIndex">回到首页</view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    export default class Success extends wepy.page {
+        data = {
+            order_id: ''
+        };
+        methods = {
+            gotoRefundDetail() {
+                api.navigateTo(`/pages/order/refund_detail?order_id=${this.order_id}`)
+            },
+            navigateTo(url) {
+                api.navigateTo(url);
+            },
+            gotoIndex() {
+                wx.reLaunch({
+                    url: `/pages/main/index?shop_id=${api.shop_id}`
+                });
+            }
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+                api.setTitle(title);
+            });
+        }
+        onLoad(options) {
+            this.order_id = options.order_id;
+        }
+    }
+</script>
+<style lang="less">
+    .success-page {
+        flex-direction: column;
+        height: 100vh;
+        background: #fff;
+        padding: 100rpx 40rpx 0;
+        .tip1 {
+            font-size: 40rpx;
+            line-height: 56rpx;
+            color: #000;
+            margin-top: 50rpx;
+        }
+        .tip2 {
+            font-size: 28rpx;
+            line-height: 40rpx;
+            color: #888;
+            margin-top: 30rpx;
+        }
+        .btn {
+            width: 100%;
+            text-align: center;
+            border: 2rpx solid #1A050505;
+            border-radius: 10rpx;
+            overflow: hidden;
+            font-size: 36rpx;
+            line-height: 90rpx;
+            box-sizing: border-box;
+            &.btn1 {
+                background: #1AAD19;
+                color: #fff;
+                margin-top: 60rpx;
+            }
+            &.btn2 {
+                background: #F8F8F8;
+                color: #000;
+                margin-top: 30rpx;
+            }
+        }
+    }
+</style>

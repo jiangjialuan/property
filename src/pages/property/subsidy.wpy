@@ -1,0 +1,584 @@
+<template>
+    <view class="container" id="annual">
+        <view class="box">
+            <view class="top">
+                <view class="step-box">
+                    <view class="steps">
+                        <view class="dot"><view class="inDot"></view></view>
+                        <view class="line"></view>
+                        <view class="dot"><view class="inDot"></view></view>
+                        <view class="line"></view>
+                        <view class="dot"><view class="inDot"></view></view>
+                    </view>
+                    <view class="step-txt">
+                        <text>填写信息</text>
+                        <text>在线查询</text>
+                        <text>坐等结果</text>
+                    </view>
+                </view>
+                <view class="txt">填写信息，在线评估，坐等结果<span>百万补贴</span>等你拿</view>
+            </view>
+            <view class='form-panel'>
+                <view class="input-txt flex">
+                    <span class="label-tip">企业名称<strong>*</strong></span><input placeholder="请输入企业名称"  value="{{form.company}}" @input="companyInput" />
+                </view>
+                <view class="input-txt flex">
+                    <span class="label-tip">产品/服务<strong>*</strong></span><input placeholder="请输入产品/服务"  value="{{form.subsidies_goods}}"  @input="subsidies_goodsInput" />
+                </view>
+                <view class="input-txt flex">
+                    <span class="label-tip">公司人数<strong>*</strong></span>
+                    <picker class="boxInput" bindchange="staff_numberChange"  range="{{staff_number}}">
+                        <view class="picker arrow-icon-d flex">
+                            <text>{{form.staff_number?form.staff_number:'请选择公司人数'}}</text>
+                            <image src="../../images/property/Triangle.png"/>
+                        </view>
+                    </picker>
+                </view>
+                 <view class="input-txt flex">
+                    <span class="label-tip">公司收入<strong>*</strong></span>
+                    <picker class="boxInput" bindchange="incomeChange"  range="{{income}}">
+                        <view class="picker arrow-icon-d flex">
+                            <text>{{form.income?form.income:'请选择公司收入'}}</text>
+                            <image src="../../images/property/Triangle.png"/>
+                        </view>
+                    </picker>
+                 </view>
+                 <view class="input-txt flex">
+                     <span class="label-tip">知识产权<strong>*</strong></span><input placeholder="请输入专利或软件著作权类型和数量"  value="{{form.intellectual_property}}"  @input="intellectual_propertyInput" />
+                 </view>
+                  <view class="input-txt flex" style="min-height:auto !important; margin-bottom: 21rpx;">
+                        <span class="label-tip"></span>
+                        <view class="guardians"><image src="/images/property/guardians.png"/>信息保护中，请放心填写<view class="triangle"></view></view>
+                  </view>
+                <view class="input-txt flex">
+                    <span class="label-tip">联系电话<strong>*</strong></span>
+                    <input class="mobileStyle" placeholder="请输入联系电话"  value="{{form.mobile_phone}}" @input="mobileInput" type="number" />
+                    <button class="weixin" open-type="getPhoneNumber" bindgetphonenumber="getPhoneNumber"><image src="/images/property/weixin.png"/> 自动填写</button>
+                </view>
+                <view class="input-txt flex">
+                     <span class="label-tip">收件邮箱</span><input placeholder="免费接收查询结果"  value="{{form.email}}" @input="emailInput" />
+                </view>
+                <view class="input-txt flex">
+                    <span class="label-tip">联系人</span><input placeholder="如：莫先生/陈女士"  value="{{form.contact}}" @input="contactInput" />
+                </view>
+                <view class="input-txt flex">
+                    <span class="label-tip">备注</span><input placeholder=""  value="{{form.remark}}" @input="remarkInput" />
+                </view>
+            </view>
+            <button class="submit-btn" @tap="submitForm">获取查询结果</button>
+        </view>
+        <view class="bg"></view>
+        <!--弹框-->
+        <view class="alertbg" wx:if="{{isShow}}"></view>
+        <view class="alert" wx:if="{{isShow}}">
+            <view class="title"><image src="/images/property/Combined.png"/>提交成功</view>
+            <view class="tips">
+                <view>专业顾问即将与您联系</view>
+                <view>免费获取查询结果</view>
+            </view>
+            <view class="btns">
+                <view @tap="search">继续评估</view>
+                <view @tap="goIndex">返回首页</view>
+            </view>
+        </view>
+    </view>
+</template>
+
+<script>
+    import wepy from 'wepy';
+    import api from '../../common/api';
+    export default class Index extends wepy.page {
+        config = {
+            navigationBarTitleText: '补贴评估'
+        }
+        components = {}
+        // mixins = [testMixin]
+
+        data = {
+            form: {},
+            isShow: false,
+            code:'',
+            staff_number:[
+                '10人以下',
+                '11-20人',
+                '20-50人',
+                '50人以上 '
+            ],
+            income:[
+                '100万以下',
+                '100-500万',
+                '500-1000万',
+                '1000万以上'
+            ]
+        }
+
+        computed = {}
+
+        methods = {
+            // 获取查询结果
+            submitForm() {
+                if (this.validate()) {
+                    api.checkLogin({isgoback:false}).then(json => {
+                        this.form.tokenkey = wx.getStorageSync('tokenkey');
+                        this.form.act = 1;
+                        this.form.isgoback=false;
+                        this.$apply();
+                        api.request({
+                            url: api.subsidies_consult,
+                            method: 'post',
+                            data: this.form
+                        }).then(res => {
+                            this.isShow=true;
+                            this.$apply();
+                        }).catch((msg)=>{
+                            wx.showModal({
+                                title: '提示',
+                                content: msg,
+                                showCancel: false
+                            });
+                        });
+                    });
+                }
+            },
+            // 继续查询
+            search() {
+                this.form = {};
+                this.isShow = false;
+                this.$apply();
+            },
+            // 返回首页
+            goIndex() {
+                // ?shop_id=${api.shop_id}
+                wx.reLaunch({
+                    url: `/pages/main/index`
+                });
+            },
+            // 获取手机号码
+            getPhoneNumber(e) {
+                if(e.detail.errMsg.indexOf('error')>-1){
+                    wx.showModal({
+                        title: '提示',
+                        content: '网络开小差了～',
+                        showCancel: false
+                    });
+                }else{
+                    if(this.code){
+                        this.getPhoneNumberRequest(this.code,e);
+                    }else{
+                        wepy.login()
+                            .then(res => {
+                                this.getPhoneNumberRequest(res.code,e);
+                            })
+                    }
+                }
+
+            },
+            companyInput(e) {
+                this.form.company = e.detail.value;
+                this.$apply();
+            },
+            subsidies_goodsInput(e){
+                this.form.subsidies_goods = e.detail.value;
+                this.$apply();
+            },
+            intellectual_propertyInput(e){
+                this.form.intellectual_property = e.detail.value;
+                this.$apply();
+            },
+            emailInput(e){
+                this.form.email = e.detail.value;
+                this.$apply();
+            },
+            mobileInput(e){
+                this.form.mobile_phone = e.detail.value;
+                this.$apply();
+            },
+            remarkInput(e){
+                this.form.remark = e.detail.value;
+                this.$apply();
+            },
+            contactInput(e){
+                this.form.contact = e.detail.value;
+                this.$apply();
+            },
+
+            incomeChange(e) {
+                this.form.income=this.income[e.detail.value];
+            },
+            staff_numberChange(e) {
+                this.form.staff_number=this.staff_number[e.detail.value];
+            },
+        }
+
+        events = {}
+        getPhoneNumberRequest(code,e){
+            console.log(code,e);
+            if(e.detail.iv){
+                api.request({
+                    url: api.bind_wx_phone,
+                    data: {
+                        get_only:1,
+                        code: code,
+                        iv: e.detail.iv,
+                        encryptedData: e.detail.encryptedData,
+                        buid: api.buid
+                    },
+                    method: 'post'
+                }).then(json => {
+                    console.log(json);
+                    this.code="";
+                    if (json.mobile_phone!='') {
+                        wx.showToast({
+                            title: "获取成功！"
+                        });
+                        this.form.mobile_phone = json.mobile_phone;
+                        this.$apply();
+                    }
+                }).catch(msg => {
+                    this.code="";
+                    this.$apply();
+                    wx.showModal({
+                        title: '提示',
+                        content: msg,
+                        showCancel: false
+                    });
+                });
+            }
+
+        }
+        showToast(content) {
+            wx.showToast({
+                image: '../../images/fail.png',
+                title: content
+            });
+        }
+        // 表单验证
+        validate() {
+            let {
+                    company,
+                    subsidies_goods,
+                    staff_number,
+                    income,
+                    intellectual_property,
+                    mobile_phone
+                } = this.form,
+                reg = /^1\d{10}$/;
+            if (!company) {
+                return this.showToast('企业名称不能为空');
+            }else if(company.replace(/(^\s+$)/g, ' ')==' '){
+                return this.showToast('企业名称不能为空');
+            }
+            if (!subsidies_goods) {
+                return this.showToast('产品/服务不能为空');
+            }else if(subsidies_goods.replace(/(^\s+$)/g, ' ')==' '){
+                return this.showToast('产品/服务不能为空');
+            }
+            if (!staff_number) {
+                return this.showToast('公司人数不能为空');
+            }else if(staff_number.replace(/(^\s+$)/g, ' ')==' '){
+                return this.showToast('公司人数不能为空');
+            }
+            if (!income) {
+                return this.showToast('公司收入不能为空');
+            }else if(income.replace(/(^\s+$)/g, ' ')==' '){
+                return this.showToast('公司收入不能为空');
+            }
+            if (!intellectual_property) {
+                return this.showToast('知识产权不能为空');
+            }else if(intellectual_property.replace(/(^\s+$)/g, ' ')==' '){
+                return this.showToast('知识产权不能为空');
+            }
+            if (!mobile_phone) {
+                return this.showToast('手机号不能为空');
+            } else {
+                if(mobile_phone.replace(/(^\s+$)/g, ' ')==' '){
+                    return this.showToast('手机号不能为空');
+                }
+                if (!reg.test(mobile_phone)) {
+                    return this.showToast('手机号格式错误');
+                }
+            }
+            return true;
+        }
+
+        onLoad() {
+            api.checkLogin().then(json => {
+                this.form.tokenkey = wx.getStorageSync('tokenkey');
+                this.form.act = 1;
+            });
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let { frontColor, backgroundColor } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+            wepy.login()
+                .then(res => {this.code=res.code;this.$apply();});
+        }
+    }
+</script>
+<style lang="less">
+    #annual {
+        padding: 30rpx;
+        color:rgba(51,51,51,1);
+        .boxInput{
+            flex: 1;
+            outline: none;
+            height:88rpx;
+            border-radius:4px;
+            border:1px solid rgba(153,153,153,1);
+            padding:0rpx 20rpx;
+            width:229rpx;
+            .picker{
+                height:88rpx;
+                line-height: 88rpx;
+                width:100%;
+                text{
+                    display:block;
+                    width:400rpx;
+                }
+            }
+            .arrow-icon-d {
+                height: 88rpx;
+                display: flex;
+                align-items: center;
+                justify-content:space-between;
+                image{
+                    width:28rpx;
+                    height:18rpx;
+                }
+             }
+        }
+
+        .alertbg{
+            position:fixed;
+            top:0px;
+            right:0px;
+            left:0px;
+            bottom:0px;
+            z-index:3;
+            background:rgba(0,0,0,1);
+            opacity:0.5;
+        }
+        .alert{
+            position:fixed;
+            z-index:4;
+            width:630rpx;
+            height:598rpx;
+            left:50%;
+            top:50%;
+            margin-left:-315rpx;
+            margin-top:-300rpx;
+            background: url("data:image/png;base64,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") no-repeat center;
+            background-size:cover;
+            .title{
+                font-size:36rpx;
+                color:rgba(255,255,255,1);
+                margin-top:62rpx;
+                text-align: center;
+                line-height: 36rpx;
+                image{
+                    width:36rpx;
+                    height:36rpx;
+                    vertical-align: top;
+                    margin-right:10rpx;
+                }
+            }
+            .tips{
+                margin-top:108rpx;
+                margin-bottom:40rpx;
+                font-size:36rpx;
+                font-weight:bold;
+                color:rgba(51,51,51,1);
+                text-align: center;
+                view:first-child{
+                    margin-bottom: 30rpx;
+                }
+            }
+            .btns{
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                view{
+                    width:300rpx;
+                    height:92rpx;
+                    border-radius:46rpx;
+                    font-size:32rpx;
+                    text-align: center;
+                    line-height: 92rpx;
+                }
+                view:first-child{
+                    background:linear-gradient(90deg,rgba(255,156,67,1) 0%,rgba(255,109,68,1) 100%);
+                    margin-bottom:20rpx;
+                    color:rgba(255,255,255,1);
+                }
+                view:last-child{
+                    border:1px solid rgba(153,153,153,1);
+                }
+            }
+
+        }
+        .bg{
+            position:fixed;
+            top:0px;
+            right:0px;
+            left:0px;
+            bottom:0px;
+            z-index:0;
+            background: #fff;
+        }
+        .box{
+            z-index: 2;
+            position:relative;
+        }
+        .top{
+            border-bottom:1px dashed rgba(151,151,151,1);
+            padding-bottom:30rpx;
+            .steps{
+                display: flex;
+                flex-direction: row;
+                justify-content: center;
+                align-items: center;
+                margin-bottom:10rpx;
+                .dot{
+                    width:20rpx;
+                    height:20rpx;
+                    background:rgba(240,240,240,1);
+                    border-radius:50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    .inDot{
+                        width:12rpx;
+                        height:12rpx;
+                        background:rgba(255,109,68,1);
+                        border-radius:50%;
+                    }
+                }
+                .line{
+                    height:2px;
+                    background:rgba(240,240,240,1);
+                    width:173rpx;
+                }
+            }
+            .step-txt{
+                display:flex;
+                flex-direction: row;
+                justify-content: center;
+                align-items: center;
+                margin-bottom:30rpx;
+                text{
+                    width:200rpx;
+                    text-align: center;
+
+                }
+            }
+            .txt{
+                font-size:28rpx;
+                font-family:PingFangSC-Medium;
+                font-weight:500;
+                color:rgba(153,153,153,1);
+                line-height:28rpx;
+                text-align: center;
+                width:100%;
+                span{
+                    color:#FF6D44;
+                }
+            }
+        }
+        .form-panel {
+            margin-top: 22rpx;
+            margin-bottom:60rpx;
+            .input-txt {
+                min-height: 88rpx;
+                border-radius: 4rpx;
+                margin-bottom: 28rpx;
+                position: relative;
+                span{
+                    display: inline-block;
+                    width:140rpx;
+                    margin-right:20rpx;
+                    text-align: right;
+                    strong{
+                        color:#EE4A4A;
+                        vertical-align: middle;
+                    }
+                }
+                input{
+                    flex: 1;
+                    outline: none;
+                    height:88rpx;
+                    border-radius:4px;
+                    border:1px solid rgba(153,153,153,1);
+                    padding:0rpx 20rpx;
+                }
+                .mobileStyle{
+                    padding-right:160rpx;
+                }
+                .weixin{
+                    position:absolute;
+                    right:20rpx;
+                    font-size:24rpx;
+                    font-family:PingFangSC-Regular;
+                    font-weight:400;
+                    color:rgba(47,207,88,1);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border:none;
+                    background: transparent;
+                    z-index:2;
+                    padding:0rpx;
+                    &::after{ border: none; }
+                    width:140rpx;
+                    image{
+                        width:24rpx;
+                        height:24rpx;
+                        margin-right:4rpx;
+                    }
+                }
+            }
+            .guardians{
+                width:320rpx;
+                height:51rpx;
+                background:linear-gradient(90deg,rgba(85,216,96,1) 0%,rgba(46,207,110,1) 100%);
+                border-radius:4rpx;
+                font-size:24rpx;
+                font-weight:400;
+                color:rgba(255,255,255,1);
+                line-height: 51rpx;
+                text-align: center;
+                position:relative;
+                image{
+                    width:22rpx;
+                    height:24rpx;
+                    vertical-align: middle;
+                    margin-right:10rpx;
+                }
+                .triangle{
+                    content: '';
+                    position: absolute;
+                    bottom:-10px;
+                    left: 50%;
+                    width: 0;
+                    height: 0;
+                    border-right: 10px solid #2ECF6E;
+                    border-bottom: 10px solid transparent;
+                    border-top: 10px solid transparent;
+                    transform:rotate(-90deg);
+                }
+            }
+        }
+        .submit-btn {
+
+            height: 88rpx;
+            line-height: 88rpx;
+            color: #fff;
+            background:linear-gradient(90deg,rgba(255,156,67,1) 0%,rgba(255,109,68,1) 100%);
+            border-radius: 16rpx;
+            font-size: 36rpx;
+            text-align: center;
+        }
+    }
+</style>

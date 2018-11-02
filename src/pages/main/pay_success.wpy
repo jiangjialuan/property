@@ -1,0 +1,257 @@
+<template>
+    <view class="pay-success page" wx:if="{{!loading}}">
+        <view class="order-info flex">
+            <image class="success-img" src="/images/success.png" mode="aspectFill" />
+            <view class="success-tips">支付成功</view>
+            <view class="total-price">¥{{order_info.order_money}}</view>
+        </view>
+        <view class="images flex" wx:if="{{order_info.img.length > 1}}">
+            <scroll-view scroll-x>
+                <image wx:for="{{order_info.img}}" wx:for-index="index" wx:for-item="item" wx:key="index" src="{{item}}" mode="aspectFill" />
+            </scroll-view>
+        </view>
+        <view class="images flex" style="justify-content:center;" wx:else>
+            <image wx:for="{{order_info.img}}" wx:for-index="index" wx:for-item="item" wx:key="index" src="{{item}}" mode="aspectFill" />
+        </view>
+        <view class="section">
+            <view class="section-item flex">
+                <view></view>
+                <view>共 {{order_info.num}} 件商品</view>
+            </view>
+            <view class="section-item" wx:if="{{order_info.is_goods == '1'}}">
+                <view class="info flex"><text class="label">收货人：</text>{{order_info.username}}　{{order_info.mobile}}</view>
+                <view class="info flex"><text class="label">收货地址：</text>{{order_info.address}}</view>
+            </view>
+            <view class="section-item" wx:else>
+                <view class="info">联系电话：{{order_info.mobile}}</view>
+                <view class="info">买家备注：{{order_info.remark}}</view>
+            </view>
+            <view class="section-item flex">
+                <view class="tips">
+                    请核对收货信息，五分钟内可修改
+                </view>
+                <view class="btn" @tap="changeOrder">
+                    {{order_info.is_goods == 1 ? '更换地址' : '修改信息'}}
+                </view>
+            </view>
+        </view>
+        <view class="container flex">
+            <view class="btn" @tap="gotoIndex">回到首页</view>
+            <view class="btn detail-btn" @tap="navigateTo('/pages/order/list')">查看订单</view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    export default class Success extends wepy.page {
+        data = {
+            loading: true,
+            order_info: {},
+            form: {}
+        };
+        getOrderInfo(order_id) {
+            api.request({
+                url: `${api.baseUrl}/mobile/order/pay_success_info`,
+                data: {
+                    order_id: order_id
+                }
+            }).then(json => {
+                this.order_info = json;
+                this.loading = false;
+                if (json.is_goods == 1) {
+                    this.form = {
+                        order_id: order_id,
+                        address_id: json.address_id
+                    }
+                } else {
+                    this.form = {
+                        order_id: order_id,
+                        mobile: json.mobile,
+                        remark: json.remark
+                    }
+                }
+                this.$apply();
+                api.loading.hide();
+            });
+        }
+        methods = {
+            changeOrder() {
+                let {
+                    is_goods,
+                    remark,
+                    mobile
+                } = this.order_info;
+                if (is_goods == 1) {
+                    api.navigateTo('/pages/address/list?from=success_page');
+                } else {
+                    api.navigateTo(`/pages/main/change_remark?from=success_page&remark=${remark}&mobile=${mobile}`);
+                }
+            },
+            navigateTo(url) {
+                api.navigateTo(url);
+            },
+            gotoIndex() {
+                wx.reLaunch({
+                    url: `/pages/main/index?shop_id=${api.shop_id}`
+                });
+            }
+        };
+        resetData() {
+            this.loading = true;
+            this.$apply();
+        }
+        edit_order() {
+            api.request({
+                url: `${api.baseUrl}/mobile/order/edit_order`,
+                data: this.form
+            }).then(json => {
+                api.showToast('订单修改成功');
+                if (this.order_info.is_goods == 1) {
+                    let orderDetailAddress = store.get('orderDetailAddress');
+                    this.order_info.address = orderDetailAddress.full_address;
+                    this.order_info.mobile = orderDetailAddress.mobile;
+                    this.order_info.username = orderDetailAddress.consignee;
+                } else {
+                    let remark_info = store.get('remark_info');
+                    this.order_info.mobile = remark_info.mobile;
+                    this.order_info.remark = remark_info.remark;
+                }
+                this.$apply();
+                api.lastPage = 'pay_success';
+            }).catch(msg => {
+                api.showToast(msg);
+            });
+        }
+        onShow() {
+            if (api.lastPage == 'address') {
+                let orderDetailAddress = store.get('orderDetailAddress');
+                this.form.address_id = orderDetailAddress.address_id;
+                this.edit_order();
+            }
+            if (api.lastPage == 'change_remark') {
+                let remark_info = store.get('remark_info');
+                this.form.remark = remark_info.remark;
+                this.form.mobile = remark_info.mobile;
+                this.edit_order();
+            }
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+        }
+        onLoad(options) {
+            api.loading.show();
+            this.resetData();
+            api.checkLogin().then(json => {
+                api.from_uid = options.from_uid || api.from_uid;
+                api.shop_id = options.shop_id || parseInt(api.shop_id);
+                this.userInfo = json;
+                api.setTitle('支付成功');
+                this.$apply();
+                this.getOrderInfo(options.order_id);
+            });
+        }
+    }
+</script>
+<style lang="less">
+    page {
+        background: #fff;
+    }
+    .pay-success {
+        min-height: 100vh;
+        position: relative;
+        .images {
+            height: 184rpx;
+            background: #f2f2f2;
+            scroll-view {
+                white-space: nowrap;
+            }
+            image {
+                width: 144rpx;
+                height: 144rpx;
+                margin-left: 20rpx;
+                background: #fff;
+            }
+        }
+        .section {
+            background: #fff;
+            .section-item {
+                justify-content: space-between;
+                padding: 0 22rpx;
+                min-height: 88rpx;
+                border-bottom: 1px solid #f2f2f2;
+                .tips {
+                    color: #ff552a;
+                    font-size: 24rpx;
+                }
+                .btn {
+                    border-radius: 30rpx;
+                    line-height: 58rpx;
+                    border: 2rpx solid #999;
+                    font-size: 28rpx;
+                    color: #333;
+                    padding: 0 24rpx;
+                }
+                .info {
+                    line-height: 1.5;
+                    align-items:flex-start;
+                    margin: 24rpx 0;
+                    .label {
+                        width: 140rpx;
+                        height: 28rpx;
+                        text-align: justify;
+                        flex-shrink: 0;
+                    }
+                    .label:after {
+                        content: '';
+                        display: inline-block;
+                        padding-left: 100%;
+                    }
+                }
+            }
+        }
+        .order-info {
+            margin: 60rpx;
+            background: #fff;
+            justify-content: center;
+            flex-direction: column;
+            .success-img {
+                width: 120rpx;
+                height: 120rpx;
+            }
+            .success-tips {
+                margin: 20rpx auto 40rpx;
+                font-size: 36rpx;
+                color: #09BB07;
+            }
+            .total-price {
+                font-size: 48rpx;
+                color: #333;
+            }
+        }
+        .container {
+            justify-content: space-between;
+            margin: 40rpx 30rpx;
+            .btn {
+                width: 330rpx;
+                height: 92rpx;
+                border-radius: 4rpx;
+                border: 2rpx solid #ff552a;
+                line-height: 92rpx;
+                text-align: center;
+                font-size: 36rpx;
+                color: #ff552a;
+                &.detail-btn {
+                    background: #ff552a;
+                    color: #fff;
+                }
+            }
+        }
+    }
+</style>

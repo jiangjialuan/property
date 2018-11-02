@@ -1,0 +1,397 @@
+<template>
+    <view class="spec-page page">
+        <view class="pop-title">产品规格</view>
+        <view class="spec-exp flex">
+            <view class="spec-image fl">
+                <image class="spec-img" src="{{checkedSku.image}}" mode="aspectFill" />
+            </view>
+            <view class="spec-info fl">
+                <view class="name">{{goods_info.wname}}</view>
+                <view class="stock">¥
+                    <text id="spec_stock">{{checkedSku.current_price}}</text>
+                    <text class="surplus">{{stockText}}</text>
+                </view>
+            </view>
+        </view>
+        <scroll-view class="format-items" scroll-y style="height:{{height}}px">
+            <view class="format-item item clearfix" wx:for="{{goods_info.attributes}}" wx:key="index" wx:for-index="index" wx:for-item="item" wx:if="{{!item.is_default}}">
+                <view class="title">{{item.name}}</view>
+                <view class="attribute-list" wx:for="{{item.values}}" wx:key="valueIndex" wx:for-index="valueIndex" wx:for-item="value">
+                    <view class="attribute-item {{value.id === item.checkedValue.id?'active':''}}" @tap="handleAttrClick('{{value.id}}','{{item.attr_id}}')">
+                        {{value.name}}
+                    </view>
+                </view>
+            </view>
+            <view class="format-item item clearfix">
+                <view class="title fl">数量</view>
+                <view class="amount-box flex fr">
+                    <button class="amount-btn flex {{num<=1?'disabled':''}}" disabled="{{num <= 1}}" plain="text" @tap="handleNumBtnClick('sub')">
+                            <image src="/images/common/{{num<=1?'minus_disable':'minus'}}.png" />
+                        </button>
+                    <input type="number" class="input-txt" value="{{num}}" @blur="handleNumInputBlur" @input="handleNumInputChange" />
+                    <button class="amount-btn flex {{num >= checkedSku.stock?'disabled':''}}" disabled="{{num >= checkedSku.stock}}" plain="text" @tap="handleNumBtnClick('add')">
+                            <image src="/images/common/{{num >= checkedSku.stock?'plus_disable':'plus'}}.png" />
+                        </button>
+                </view>
+            </view>
+        </scroll-view>
+        <view class="page-footer" hidden="{{loading}}" wx:if="{{checkedSku.stock == 0}}">
+            <view class="btn disable-btn flex" disabled>已售罄</view>
+        </view>
+        <view class="page-footer" hidden="{{loading}}" wx:else>
+            <view class="btn cart-btn flex" @tap="confirm('cart')" wx:if="{{type == 'all'}}">加入购物车</view>
+            <view class="btn confirm-btn flex" @tap="confirm('buy')" wx:if="{{type == 'all'}}">立即购买</view>
+            <view class="btn {{type == 'cart'?'cart-btn':'confirm-btn'}} flex" @tap="confirm('{{type}}')" wx:if="{{type != 'all'}}">{{type == 'cart'?'加入购物车':'立即购买'}}</view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    import cartService from '../../common/cartService';
+    export default class Spec extends wepy.component {
+        data = {
+            stockText: '',
+            checkedSku: {},
+            num: 1,
+            checkedText: '',
+            type: '',
+            height: 0,
+            goods_info: {}
+        };
+        resetData() {
+            this.stockText = '';
+            this.checkedSku = {};
+            this.num = 1;
+            this.checkedText = '';
+            this.type = '';
+            this.height = 0;
+            this.goods_info = {};
+            this.$apply();
+        }
+        renderStockText() {
+            let currentStock = parseInt(this.checkedSku.stock);
+            if (currentStock > 50) {
+                this.stockText = '有货';
+            } else if (currentStock > 10) {
+                this.stockText = '库存紧张';
+            } else if (currentStock > 0) {
+                this.stockText = `仅剩${currentStock}件`;
+            } else {
+                this.stockText = '已售罄';
+            }
+        }
+        renderCheckedSku() {
+            let {
+                attributes
+            } = this.goods_info;
+            this.checkedSku = this.getCheckedSku();
+            this.checkedSku.num = this.num;
+            this.checkedText = attributes.map(attr => attr.checkedValue.name).join('，');
+        }
+        unorderedArrayEqual(arrA, arrB) {
+            for (let i = 0, lenA = arrA.length; i < lenA; i++) {
+                if (arrB.indexOf(arrA[i]) < 0) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        getCheckedSku() {
+            let {
+                attributes,
+                skus
+            } = this.goods_info;
+            let checkedAttrValues = [];
+            for (let i = 0, len = attributes.length; i < len; i++) {
+                if (attributes[i].checkedValue) {
+                    checkedAttrValues.push(attributes[i].checkedValue.id);
+                }
+            }
+            for (let i = 0, len = skus.length; i < len; i++) {
+                if (this.unorderedArrayEqual(checkedAttrValues, skus[i].values)) {
+                    return skus[i];
+                }
+            }
+        }
+        methods = {
+            handleAttrClick(vid, attrid) {
+                let {
+                    attributes
+                } = this.goods_info;
+                let selectedAttr = 0;
+                attributes.map(item => {
+                    if (item.attr_id == attrid) {
+                        item.values.map(value => {
+                            if (value.id == vid) {
+                                item.checkedValue = value;
+                            }
+                        });
+                    }
+                    if (item.checkedValue) {
+                        selectedAttr++;
+                    }
+                });
+                if (selectedAttr == attributes.length) {
+                    this.renderCheckedSku();
+                    this.renderStockText();
+                    let stock = parseInt(this.checkedSku.stock);
+                    if (this.num > stock) {
+                        this.num = stock;
+                    } else {
+                        if (this.num === 0) {
+                            this.num = 1;
+                        }
+                    }
+                }
+                this.$apply();
+            },
+            handleNumBtnClick(type) {
+                if (type === 'sub') {
+                    if (this.num > 1) {
+                        this.num -= 1;
+                    }
+                } else {
+                    this.num++;
+                }
+                this.$apply();
+                let stock = parseInt(this.checkedSku.stock);
+                if (isNaN(stock)) return;
+                if (this.num >= stock) {
+                    this.num = stock;
+                }
+                this.renderCheckedSku();
+                this.$apply();
+            },
+            handleNumInputBlur(event) {
+                let {
+                    value
+                } = event.detail,
+                    stock = parseInt(this.checkedSku.stock);
+                if (value >= stock) {
+                    value = stock;
+                }
+                this.num = value || 1;
+                this.$apply();
+            },
+            handleNumInputChange(event) {
+                let {
+                    value
+                } = event.detail,
+                    stock = parseInt(this.checkedSku.stock);
+                if (value >= stock) {
+                    value = stock;
+                }
+                this.num = value;
+                this.$apply();
+                return value;
+            },
+            confirm(type) {
+                let {
+                    skus,
+                    wid
+                } = this.goods_info;
+                let sku_id, stock;
+                if (skus.length == 1) {
+                    sku_id = skus[0].sku_id;
+                    stock = skus[0].stock;
+                } else {
+                    sku_id = this.checkedSku.sku_id;
+                    stock = this.checkedSku.stock;
+                }
+                if (!stock || !sku_id) {
+                    wx.showToast({
+                        image: '../../images/fail.png',
+                        title: '请选择规格'
+                    });
+                    return;
+                }
+                this.$emit('confirm', {
+                    type: type,
+                    data: Object.assign({
+                        wid: wid,
+                        sku_id: sku_id,
+                        num: this.num,
+                    }, this.form || {}),
+                    url: this.url,
+                    goods_type: this.goods_info.type
+                }, () => {
+                    this.$emit('hideShop');
+                });
+            }
+        };
+        confirmBtn(param) {
+            let {
+                type,
+                goods_info,
+                form,
+                url
+            } = param;
+            this.$emit('confirm', {
+                type: type,
+                data: Object.assign({
+                    wid: goods_info.wid,
+                    sku_id: goods_info.best_sku,
+                    num: 1
+                }, form || {}),
+                url: url,
+                goods_type: goods_info.type
+            }, () => {
+                this.$emit('hideShop');
+            });
+        }
+        showPop(data) {
+            console.log(data,'data')
+            this.resetData();
+            this.type = data.type;
+            this.url = data.url;
+            this.form = data.form;
+            let {
+                attributes
+            } = data.goods_info;
+            attributes && attributes.map(item => {
+                item.is_default = false;
+                if (attributes.length == 1 && item.values.filter(value => value.name == '一米普通').length) {
+                    item.is_default = true;
+                }
+                delete item.checkedValue;
+            });
+            this.goods_info = data.goods_info;
+            this.num = 1;
+
+            this.checkedSku = {
+                image: this.goods_info.images[0],
+                current_price: this.goods_info.current_price,
+                num: 1
+            };
+            this.checkedText = '';
+            wx.getSystemInfo({
+                success: (res) => {
+                    this.height = res.windowHeight - res.windowWidth / 750 * (306 + 2 * 96 + 198);
+                    this.$apply();
+                }
+            });
+            this.$apply();
+        }
+    }
+</script>
+<style lang="less">
+    .spec-page {
+        .spec-list {
+            position: relative;
+            width: 100%;
+            background: #fff;
+            height: 100%;
+        }
+        .spec-cont {
+            padding: 20rpx;
+        }
+        .spec-exp {
+            position: relative;
+            padding: 24rpx 22rpx;
+            border-bottom: 1px solid #e6e6e6;
+            .spec-image {
+                width: 144rpx;
+                height: 144rpx;
+                background: #fff;
+                border-radius: 10rpx;
+                image {
+                    width: 144rpx;
+                    height: 144rpx;
+                    border-radius: 10rpx;
+                }
+            }
+            .spec-info {
+                flex: 1;
+                padding-left: 32rpx;
+                width: 450rpx;
+                .name {
+                    font-size: 28rpx;
+                    color: #3d3d3d;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    padding-bottom: 30rpx;
+                }
+                .stock {
+                    font-size: 26rpx;
+                    color: #FF552A;
+                    padding-bottom: 16rpx;
+                }
+                .surplus {
+                    font-size: 22rpx;
+                    color: #999;
+                    margin-left: 12rpx;
+                }
+                .selected {
+                    font-size: 26rpx;
+                    color: #999;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+            }
+        }
+        .format-items {
+            .format-item {
+                position: relative;
+                line-height: 56rpx;
+                margin: 0 24rpx;
+                .title {
+                    font-size: 28rpx;
+                    color: #333;
+                    line-height: 56rpx;
+                }
+            }
+        }
+        .attribute-list {
+            .attribute-item {
+                position: relative;
+                margin: 0 24rpx 24rpx 0;
+                font-size: 24rpx;
+                word-break: break-all;
+                padding: 0 20rpx;
+                float: left;
+                border-radius: 5rpx;
+                border: 1px solid #999;
+                color: #3d3d3d;
+                min-width: 100rpx;
+                text-align: center;
+                &.active {
+                    border-color: #FF552A;
+                    color: #FF552A;
+                }
+            }
+        }
+        .spec-btn {
+            position: absolute;
+            width: 100%;
+            bottom: 0;
+        }
+        .amount-box {
+            border-radius: 5rpx;
+            height: 48rpx;
+            line-height: 48rpx;
+            border: 2rpx solid #999;
+            width: 188rpx;
+            text-align: center;
+            .amount-btn {
+                width: 50rpx;
+                padding: 0;
+                height: 50rpx;
+                border: none;
+                background: transparent;
+                image {
+                    width: 48rpx;
+                    height: 48rpx;
+                }
+            }
+            .input-txt {
+                flex: 1;
+                color: #3d3d3d;
+                font-size: 26rpx;
+            }
+        }
+    }
+</style>

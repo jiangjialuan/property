@@ -1,0 +1,85 @@
+<template>
+    <Case/>
+</template>
+
+<script>
+    import wepy from 'wepy';
+    import api from '../../common/api';
+    import Case from 'yunmi-case';
+    export default class Index extends wepy.page {
+        config = {
+            backgroundColorTop: '#2f91d0',
+            backgroundColorBottom: '#ffffff'
+        }
+        components = {
+            Case
+        };
+        showFailToast(msg) {
+            wx.showToast({
+                image: '../../images/fail.png',
+                title: msg
+            });
+        }
+        events = {
+            submitForm(form) {
+                api.request({
+                    url: api.save_business_consulution,
+                    data: {
+                        act: 1,
+                        name: form.name,
+                        mobile: form.phone,
+                        field: form.job,
+                        detail: form.detail
+                    },
+                    method: 'POST'
+                }).then(json => {
+                    wx.showToast({
+                        title: '提交成功！'
+                    });
+                }).catch(msg => {
+                    this.showFailToast(msg);
+                });
+            }
+        }
+        onLoad(options) {
+            api.checkLogin().then(json => {
+                api.from_uid = options.from_uid || api.from_uid;
+                api.shop_id = options.shop_id || parseInt(api.shop_id);
+                this.userInfo = json;
+                this.$apply();
+                this.$invoke('Case', 'initData', {
+                    showBtn: false,
+                    phone: '18818863579'
+                });
+                api.setTitle('一米小程序');
+            });
+        }
+        // 转发
+        onShareAppMessage(res) {
+            let uid = this.userInfo.is_agency ?
+                this.userInfo.uid :
+                api.from_uid ? api.from_uid : this.userInfo.uid,
+                path = `/pages/main/aboutus?from_uid=${uid}&shop_id=${api.shop_id}`;
+            console.log(path)    
+            return {
+                title: '一米微信小程序，帮助商家更好地做生意',
+                path: path,
+                success: (res) => {
+                    wx.showToast({
+                        title: '转发成功！'
+                    });
+                },
+                fail: (res) => {
+                    let msg = '转发失败！';
+                    if (/cancel/ig.test(res.errorMsg) > -1) {
+                        msg = '转发取消！';
+                    }
+                    wx.showToast({
+                        image: '../../images/fail.png',
+                        title: msg
+                    });
+                }
+            }
+        }
+    }
+</script>

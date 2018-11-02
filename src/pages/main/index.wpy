@@ -1,0 +1,1227 @@
+<template>
+    <view class="index-page" wx:if="{{!loading}}">
+        <import src="/templates/vertical-goods-item.wxml" />
+        <import src="/templates/horizontal-goods-item.wxml" />
+        <import src="/templates/coupon-item.wxml" />
+        <view class="banner-info">
+            <swiper class="banner-list" indicator-dots="true" indicator-active-color="#fff" autoplay="true" circular="true" wx:if="{{banner.length > 1}}">
+                <swiper-item wx:for="{{banner}}" wx:for-index="index" wx:for-item="item" wx:key="index" @tap="navigateTo('{{item.url}}')">
+                    <image src="{{item.img}}" class="slide-image" mode="widthFix" />
+                </swiper-item>
+            </swiper>
+            <view class="banner-list" wx:elif="{{banner.length == 1}}" @tap="navigateTo('{{banner[0].url}}')">
+                <image src="{{banner[0].img}}" class="slide-image" mode="widthFix" />
+            </view>
+            <view class="invite-btn flex" @tap="navigateTo('../property/partner')" wx:if="{{join_switch&&userInfo.is_agency == 0}}">
+                <view class="content flex">
+                    <view class="light" style="animation: light 2s cubic-bezier(.25, .25, .75, .5) 1s infinite;">
+                        <image src="/images/light.png" />
+                    </view>
+                    <view class="line line-top" style="animation: line-top .75s cubic-bezier(.05, .05, .5, .2) 3s;">
+                        <image src="/images/line.png" />
+                    </view>
+                    <view class="line line-bottom" style="animation: line-bottom .75s cubic-bezier(.05, .05, .5, .2) 3s;">
+                        <image src="/images/line.png" />
+                    </view>
+                    <image src="/images/common/invite-img.png" class="invite-image" />诚邀合伙人，马上了解详情
+                    <image src="/images/common/arrow-right.png" class="arrow-image" />
+                </view>
+            </view>
+            <block wx:if="{{switch_flag}}">
+                <!-- 搜索框 -->
+                <view class="search-bar flex" @tap="navigateTo('/pages/main/search')">
+                    <image class="search-icon" src="/images/common/icon_search.png" />
+                    <view class="search-input">搜索热门商品</view>
+                </view>
+                <!--<view class="shortcut-area flex" @tap="navigateTo('/pages/branch/index')">
+                    <image src="/images/common/icon_stores.png" />切换店铺
+                </view>-->
+            </block>
+            <block wx:else>
+                <!-- 搜索框 -->
+                <view class="search-bar flex" @tap="navigateTo('/pages/main/search')" >
+                    <image class="search-icon" src="/images/common/icon_search.png" />
+                    <view class="search-input">搜索热门商品</view>
+                </view>
+            </block>
+        </view>
+        <view class="index-coupon-list" wx:if="{{home_coupon_info.list.length}}">
+            <scroll-view scroll-x class="flex" @scrolltolower="loadCoupon('home')">
+                <template is="coupon-item" data="{{item,type:'home'}}" wx:for="{{home_coupon_info.list}}" wx:key="index" />
+            </scroll-view>
+        </view>
+        <!-- 快捷导航 -->
+        <view class="quick-navigation-container" >
+            <view class="quick-navigation flex {{quickNavigationMore?'':'hide-more'}}">
+                <view class="item"  @tap="navigateToDefined('/pages/property/trademark_search')">
+                    <image src="/images/property/trademark-search.png" />
+                    <text>商标查询</text>
+                </view>
+                <view class="item"  @tap="navigateToDefined('/pages/property/patent_search')">
+                    <image src="/images/property/patent-search.png" />
+                    <text>专利检索</text>
+                </view>
+                <view class="item"  @tap="navigateToDefined('/pages/property/annual_fee_pay')">
+                    <image src="/images/property/annual-fee-pay.png" />
+                    <text>年费代缴</text>
+                </view>
+                <view class="item"  @tap="navigateToDefined('/pages/property/category_search')">
+                    <image src="/images/property/category-search.png" />
+                    <text>类别查询</text>
+                </view>
+                <view class="item"  @tap="navigateToDefined('/pages/property/publish_demand')">
+                    <image src="/images/property/publish-need.png" />
+                    <text>发布需求</text>
+                </view>
+                <view class="item"  @tap="navigateToDefined('/pages/property/subsidy')">
+                     <image src="/images/property/Subsidy.png" />
+                     <text>补贴评估</text>
+                </view>
+                <view class="item" wx:if="{{navigation.length}}" wx:for="{{navigation}}" wx:key="index" @tap="navigateToDefined({{item.url}})">
+                    <image src="{{item.img}}" />
+                    <text>{{item.text}}</text>
+                </view>
+            </view>
+            <image class="more" src="/images/expand_list.png" wx:if="{{!quickNavigationMore && navigation.length>4}}" @tap="quickNavigationMore" />
+        </view>
+        <!-- 拼团 -->
+        <view class="common-section" wx:if="{{groupon_goods_info.list.length}}">
+            <view class="common-section-title flex">
+                <image src="/images/group_goods.png" />
+                <view class="content">优惠拼团</view>
+                <view class="more flex" @tap="navigateTo('/pages/groupon/index')">更多
+                    <image src="/images/more-link.png" />
+                </view>
+            </view>
+            <view class="goods-list vertical-list">
+                <template is="vertical-goods-item" data="{{item}}" wx:for="{{groupon_goods_info.list}}" wx:key="index" wx:if="{{index < 2}}" />
+            </view>
+        </view>
+        <!-- 商品专题 -->
+        <block wx:for="{{album_goods}}" wx:for-index="index" wx:for-item="item" wx:key="index">
+            <view class="common-section">
+                <view class="common-section-title flex">
+                    <image src="/images/album_goods.png" />
+                    <view class="content">{{item.album_name}}</view>
+                    <view class="more flex" @tap="navigateTo('/pages/album_goods/index?id={{item.id}}')">更多
+                        <image src="/images/more-link.png" />
+                    </view>
+                </view>
+                <view wx:if="{{item.album_style == 1}}" class="goods-list vertical-list">
+                    <template is="vertical-goods-item" data="{{item}}" wx:for="{{item.goods}}" wx:key="index" wx:if="{{index <= 2}}" />
+                </view>
+                <scroll-view scroll-x wx:else class="goods-list horizontal-list">
+                    <template is="horizontal-goods-item" data="{{item}}" wx:for="{{item.goods}}" wx:key="index" />
+                </scroll-view>
+            </view>
+        </block>
+        <!-- 精选商品 -->
+        <!--<view class="common-section" wx:if="{{goods_info.list.length}}">
+            <view class="list-title flex">
+                <view class="title-name flex">
+                    <image src="/images/discount_marketing.png" />热门服务</view>
+                <view class="more-link flex" @tap="navigateTo('/pages/mall/index')">更多
+                    <image src="/images/more-link.png" />
+                </view>
+            </view>
+            <scroll-view scroll-x bindscrolltolower="getGoodsList" class="goods-list horizontal-list">
+                <template is="horizontal-goods-item" data="{{item}}" wx:for="{{goods_info.list}}" wx:key="index" />
+            </scroll-view>
+        </view>-->
+        <videoList :options="options" />
+        <!--<view wx:if="{{userInfo.is_agency == 0}}">
+            <button class="join-btn flex" open-type="getUserInfo" bindgetuserinfo="userLogin('share')" plain wx:if="{{!userInfo.name}}">
+                        <image src="/images/account/join.png" />
+                    </button>
+            <view class="join-btn flex" wx:else @tap="navigateTo('/pages/main/join')">
+                <image src="/images/account/join.png" />
+            </view>
+        </view>-->
+        <shopIndex/>
+        <view class="popwin" wx:if="{{popup_coupon_info.list.length && !popup_coupon_info.hidden}}" catchtouchmove='true'>
+            <view class="layer" @tap="hideCouponPop"></view>
+            <view class="coupon-content">
+                <image src="../../images/coupon/title.png" class="title-bg" mode="aspectFit" />
+                <view class="title">领券享受购物优惠</view>
+                <scroll-view scroll-y class="coupon-list" @scrolltolower="loadCoupon('popup')">
+                    <template is="coupon-item" data="{{item,type:'popup'}}" wx:for="{{popup_coupon_info.list}}" wx:key="index" />
+                </scroll-view>
+                <image src="../../images/coupon/close.png" class="close" mode="aspectFill" @tap="hideCouponPop" />
+            </view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from "wepy";
+    import api from "../../common/api";
+    import store from "../../common/store";
+    import loadCode from "../../common/loadCode";
+    import shopIndex from "../../components/shop/index";
+    import videoList from '../../components/video-list';
+    import cartService from "../../common/cartService";
+    export default class Index extends wepy.page {
+        config = {
+            enablePullDownRefresh: true
+        };
+        components = {
+            shopIndex,
+            videoList
+        };
+        events = {
+            getVideoData(page) {
+                api.request({
+                    url: api.short_video_recommend,
+                    data: {
+                        act: 1,
+                        page: page,
+                        buid: api.buid,
+                        version: api.version,
+                        shop_id: api.shop_id
+                    }
+                }).then(json => {
+                    json.list.map(item => {
+                        item.time = api.format(item.length);
+                        item.goods = item.goods.filter(goods => {
+                            let {
+                                type
+                            } = goods;
+                            if (type == 'goods' || type == 'virtual_goods' || type == 'consult') {
+                                goods.length = item.goods.length;
+                            }
+                            return type == 'goods' || type == 'virtual_goods' || type == 'consult';
+                        });
+                    });
+                    this.$invoke('videoList', 'renderData', json);
+                    this.loading = false;
+                    api.loading.hide();
+                    this.$apply();
+                }).catch(msg => {
+                    this.loading = false;
+                    this.$apply();
+                    api.loading.hide();
+                });
+            },
+            confirm(json, callback) {
+                let {
+                    data,
+                    type,
+                    goods_type,
+                    url
+                } = json;
+                if (type == "buy") {
+                    api.request({
+                            url: url,
+                            method: "POST",
+                            data: data
+                        })
+                        .then(res => {
+                            callback && callback();
+                            store.set("goods_info", res);
+                            api.navigateTo(`/pages/${goods_type}/confirm?from=buy`);
+                        })
+                        .catch(msg => {
+                            api.showModal(msg);
+                            callback && callback();
+                        });
+                } else {
+                    cartService
+                        .addCart(data.wid, data.sku_id, data.num)
+                        .then(json => {
+                            wx.showToast({
+                                title: "商品已加入购物车"
+                            });
+                            callback && callback();
+                        })
+                        .catch(msg => {
+                            api.showModal(msg);
+                            callback && callback();
+                        });
+                }
+            },
+            userLogin(type, e) {
+                this.userLogin(type, e);
+            },
+            openSpec(id, goods_type) {
+                this.openSpec(id, goods_type);
+            },
+            navigateTo(url) {
+                this.navigateTo(url);
+            }
+        };
+        userLogin(type, e) {
+            api.userLogin(type, e).then(json => {
+                this.userInfo = json.data.data;
+                this.$apply();
+                if (type == 'share') {
+                    wx.navigateTo({
+                        url: `/pages/main/join`
+                    });
+                }
+            });
+        }
+        openSpec(id, goods_type) {
+            this.getGoodsInfo(id).then(json => {
+                let url = api.buy_now_woxiu,
+                    {
+                        skus,
+                        is_groupon
+                    } = json;
+                if (is_groupon) {
+                    api.navigateTo(`/pages/groupon/detail?goods_id=${id}`);
+                    return;
+                }
+                if (skus && skus.length > 1) {
+                    this.$invoke('shopIndex', 'spec', {
+                        type: goods_type == 'goods' ? 'cart' : 'buy',
+                        url: url,
+                        goods_info: json
+                    });
+                } else {
+                    this.$invoke('shopIndex', 'submit', {
+                        type: goods_type == 'goods' ? 'cart' : 'buy',
+                        url: url,
+                        goods_info: json
+                    });
+                }
+            });
+        }
+        navigateTo(url) {
+            api.navigateTo(url);
+        }
+        data = {
+            album_goods: [],
+            join_switch: '',
+            switch_flag: '',
+            options: {
+                showTitle: true
+            },
+            loading: true,
+            banner: [],
+            title: "",
+            userInfo: {},
+            shop_info: {},
+            goods_info: {
+                list: [],
+                page: 1,
+                has_next: true
+            },
+            popup_coupon_info: {
+                list: [],
+                page: 1,
+                has_next: true,
+                hidden: false,
+                loading: false
+            },
+            home_coupon_info: {
+                list: [],
+                page: 1,
+                has_next: true,
+                loading: false
+            },
+            groupon_goods_info: {
+                list: [],
+                page: 1,
+                has_next: true
+            },
+            quickNavigationMore: false,
+            navigation: [],
+        };
+        methods = {
+            loadCoupon(type) {
+                let {
+                    has_next
+                } = this[`${type}_coupon_info`];
+                if (!has_next) return;
+                this.getCouponList(type);
+            },
+            hideCouponPop() {
+                this.popup_coupon_info.hidden = true;
+                this.$apply();
+            },
+            receiveCoupon(e) {
+                let {
+                    id,
+                    received
+                } = e.currentTarget.dataset.item,
+                    type = e.currentTarget.dataset.type;
+                if (received) return;
+                api.request({
+                    url: `${api.baseUrl}/mobile/coupon/receive_coupon`,
+                    data: {
+                        coupon_id: id,
+                        shop_id: api.shop_id
+                    }
+                }).then(json => {
+                    api.showToast('优惠券领取成功', () => {
+                        this.home_coupon_info.list.map((coupon, index) => {
+                            if (id == coupon.id) {
+                                coupon.received = 1;
+                            }
+                        });
+                        this.popup_coupon_info.list.map((coupon, index) => {
+                            if (id == coupon.id) {
+                                coupon.received = 1;
+                            }
+                        });
+                        this.$apply();
+                    });
+                });
+            },
+            gotoDetail(e) {
+                let {
+                    item
+                } = e.currentTarget.dataset;
+                api.navigateTo(`/pages/${item.is_groupon?'groupon':item.type}/detail?goods_id=${item.bid}`);
+            },
+            openSpecLink(e) {
+                let {
+                    item
+                } = e.currentTarget.dataset;
+                this.openSpec(item.bid, item.type);
+            },
+            // 快捷导航的自定义跳转
+            navigateToDefined(url) {
+                if (!url) return;
+                if (url.indexOf("mall/index") != -1) {
+                    wx.reLaunch({
+                        url: url
+                    });
+                } else {
+                    if (api.isClick) return;
+                    api.isClick = true;
+                    const navigateObj = {
+                        url: url,
+                        complete: () => {
+                            setTimeout(() => {
+                                api.isClick = false;
+                            }, 1000);
+                        }
+                    };
+                    wx.navigateTo(navigateObj);
+                }
+            },
+            quickNavigationMore() {
+                this.quickNavigationMore = true;
+                this.$apply();
+            },
+            gotoMall() {
+                wx.switchTab({
+                    url: `/pages/mall/index`
+                });
+            },
+            openLocation() {
+                let {
+                    latitude,
+                    longitude
+                } = this.shop_info;
+                if (!latitude) return;
+                wx.openLocation({
+                    latitude: latitude,
+                    longitude: longitude
+                });
+            },
+            makePhoneCall() {
+                let {
+                    mobile_phone
+                } = this.shop_info;
+                wx.makePhoneCall({
+                    phoneNumber: mobile_phone
+                });
+            },
+            userLogin(type, e) {
+                this.userLogin(type, e);
+            },
+            navigateTo(url) {
+                this.navigateTo(url);
+            }
+        };
+        getCouponList(type) {
+            type = type || 'home';
+            if (this[`${type}_coupon_info`].loading) return;
+            this[`${type}_coupon_info`].loading = true;
+            this.$apply();
+            let uid = wx.getStorageSync("uid"),
+                sdkInfo = wx.getStorageSync("sdk_zbinfo");
+            let data = {
+                page: this[`${type}_coupon_info`].page,
+                id: uid,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts,
+                zb_id: api.buid,
+                version: api.version,
+                shop_id: api.shop_id,
+                from: type
+            };
+            api.request({
+                url: `${api.baseUrl}/mobile/coupon/coupon_list`,
+                data: data
+            }).then(json => {
+                json.list.map(item => {
+                    if (!item.begin_time) return;
+                    item.begin_time = item.begin_time.substr(0, 10);
+                    item.end_time = item.end_time.substr(0, 10);
+                });
+                this[`${type}_coupon_info`].list = this[`${type}_coupon_info`].list.concat(json.list);
+                this[`${type}_coupon_info`].has_next = this[`${type}_coupon_info`].page < json.total_page;
+                this[`${type}_coupon_info`].page++;
+                this[`${type}_coupon_info`].loading = false;
+                this.$apply();
+            });
+        }
+        //模板活动
+        getAlbumGoods() {
+            api.request({
+                url: `${api.baseUrl}/mobile/index/album_goods`,
+                data: {
+                    act: 1,
+                    shop_id: api.shop_id,
+                    zb_id: api.buid
+                }
+            }).then(json => {
+                json.list.map(album => {
+                    album.goods.map(item => {
+                        if (item.is_groupon) {
+                            item.save_price = Math.round((item.price - item.current_price) * 100) / 100;
+                        }
+                    });
+                });
+                this.album_goods = json.list;
+                this.$apply();
+            });
+        }
+        //banner
+        getBanner() {
+            api.request({
+                url: api.get_banner,
+                data: {
+                    act: 1,
+                    shop_id: api.shop_id
+                }
+            }).then(json => {
+                if (api.shop_id) {
+                    this.shop_info = json.shop_info;
+                    this.banner = json.banner;
+                    api.setTitle(json.shop_info.shop_name);
+                } else {
+                    this.banner = json;
+                    api.setTitle(this.title);
+                }
+                this.$apply();
+            });
+        }
+        getGoodsList() {
+            let uid = wx.getStorageSync("uid"),
+                sdkInfo = wx.getStorageSync("sdk_zbinfo");
+            let data = {
+                page: this.goods_info.page,
+                id: uid,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts,
+                zb_id: api.buid,
+                version: api.version,
+                shop_id: api.shop_id
+            };
+            api.request({
+                    url: api.selection_goods,
+                    data: data
+                })
+                .then(json => {
+                    this.goods_info.list = this.goods_info.list.concat(json.list);
+                    this.goods_info.has_next = json.has_next;
+                    this.goods_info.page++;
+                    this.loading = false;
+                    this.$apply();
+                    api.loading.hide();
+                })
+                .catch(() => {
+                    this.loading = false;
+                    this.$apply();
+                });
+        }
+        // 获取团购商品
+        getGrouponGoodsList() {
+            let uid = wx.getStorageSync("uid"),
+                sdkInfo = wx.getStorageSync("sdk_zbinfo");
+            let data = {
+                page: this.groupon_goods_info.page,
+                id: uid,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts,
+                zb_id: api.buid,
+                version: api.version,
+                shop_id: api.shop_id
+            };
+            api.request({
+                    url: api.selection_groupon_goods,
+                    data: data
+                })
+                .then(json => {
+                    json.list.map(item => {
+                        item.save_price = Math.round((item.price - item.current_price) * 100) / 100;
+                    });
+                    this.groupon_goods_info.list = this.groupon_goods_info.list.concat(
+                        json.list
+                    );
+                    this.$apply();
+                });
+        }
+        // 获取分店列表
+        getShopList(callback) {
+            const initData = () => {
+                    this.getBackgroundColor();
+                    this.getBanner();
+                    this.getAlbumGoods();
+                    this.getQuickNavigation();
+                    this.getGrouponGoodsList();
+                    this.getGoodsList();
+                    this.getCouponList();
+                    this.getCouponList('popup');
+                    this.$invoke('videoList', 'getVideoData');
+                    callback && callback();
+                },
+                getShopNear = (latitude, longitude) => {
+                    return api.request({
+                        url: api.get_shop_near,
+                        data: {
+                            act: 1,
+                            latitude: latitude || '',
+                            longitude: longitude || '',
+                            shop_id: parseInt(api.shop_id) || api.buid
+                        }
+                    });
+                };
+            if (api.shop_id) {
+                initData();
+            } else {
+                if (!this.switch_flag && api.latest_shop_id) {
+                    api.shop_id = api.latest_shop_id;
+                    return initData();
+                }
+                wx.getLocation({
+                    type: 'wgs84',
+                    success: (res) => {
+                        let {
+                            latitude,
+                            longitude
+                        } = res;
+                        api.location_info = {
+                            latitude,
+                            longitude
+                        };
+                        getShopNear(latitude, longitude).then(res => {
+                            if (res.list.length) {
+                                api.shop_id = res.list[0].shop_id;
+                            } else {
+                                api.shop_id = api.buid;
+                            }
+                            initData();
+                        });
+                    },
+                    fail: (res) => {
+                        getShopNear().then(res => {
+                            if (res.list.length) {
+                                api.shop_id = res.list[0].shop_id;
+                            } else {
+                                api.shop_id = api.buid;
+                            }
+                            initData();
+                        });
+                    }
+                });
+            }
+        }
+        // 获取商品信息
+        getGoodsInfo(goods_id) {
+            let uid = wx.getStorageSync("uid"),
+                sdkInfo = wx.getStorageSync("sdk_zbinfo");
+            let data = {
+                id: uid,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts
+            };
+            return api.request({
+                url: `${api.goodsDetail}/${goods_id}`,
+                data: data
+            });
+        }
+        // 快捷导航列表
+        getQuickNavigation() {
+            api.request({
+                url: api.get_navigation,
+                data: {
+                    act: 1,
+                    shop_id: api.shop_id
+                }
+            }).then(json => {
+                this.navigation = json;
+                this.$apply();
+            });
+        }
+        resetData() {
+            this.join_switch = '';
+            this.switch_flag = '';
+            this.options = {
+                showTitle: true
+            };
+            this.shop_info = {};
+            this.title = '';
+            this.loading = true;
+            this.userInfo = {};
+            this.goods_info = {
+                list: [],
+                page: 1,
+                has_next: true
+            };
+            this.groupon_goods_info = {
+                list: [],
+                page: 1,
+                has_next: true
+            };
+            this.popup_coupon_info = {
+                list: [],
+                page: 1,
+                has_next: true,
+                hidden: false
+            };
+            this.home_coupon_info = {
+                list: [],
+                page: 1,
+                has_next: true
+            };
+            this.$apply();
+        }
+        getBackgroundColor() {
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title,
+                    join_switch,
+                    switch_flag
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+                this.title = title;
+                this.join_switch = join_switch;
+                this.switch_flag = switch_flag;
+                this.$apply();
+            });
+        }
+        onShow() {
+            if (api.shop_id) this.getBackgroundColor();
+        }
+        onLoad(options) {
+            this.resetData();
+            api.loading.show();
+            let shop_id = '',
+                scene = decodeURIComponent(options.scene);
+            if (scene != 'undefined') {
+                let sceneObj = {};
+                scene.split(',').map(item => {
+                    let value = item.split(':');
+                    sceneObj[value[0]] = value[1];
+                });
+                shop_id = sceneObj.shop_id;
+            }
+            api.checkLogin().then(json => {
+                api.from_uid = options.from_uid || api.from_uid;
+                if (shop_id || options.shop_id) api.shop_id = shop_id || options.shop_id;
+                this.userInfo = json;
+                this.$apply();
+                let uid = wx.getStorageSync("uid"),
+                    sdkInfo = wx.getStorageSync("sdk_zbinfo");
+                if (!sdkInfo) {
+                    api.request({
+                        url: api.get_sdk_zbinfo,
+                        data: {
+                            uid: uid
+                        }
+                    }).then(json => {
+                        wx.setStorageSync("sdk_zbinfo", json);
+                        this.getShopList();
+                    });
+                } else {
+                    this.getShopList();
+                }
+            });
+            let mta = require("../../common/mta_analysis.js");
+            mta.Page.init();
+            loadCode.getCode();
+        }
+        onReachBottom() {
+            this.$invoke('videoList', 'getVideoData');
+        }
+        onPullDownRefresh() {
+            this.resetData();
+            this.$invoke('videoList', 'resetData');
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                this.$apply();
+                this.getShopList(() => {
+                    wx.stopPullDownRefresh();
+                });
+            });
+            this.getBackgroundColor();
+        }
+        onShareAppMessage(res) {
+            let uid = api.userInfo.is_agency ?
+                api.userInfo.uid :
+                api.from_uid ? api.from_uid : api.userInfo.uid,
+                title = this.title,
+                path = `/pages/main/index?from_uid=${uid}&shop_id=${api.shop_id}`;
+            if (api.shop_id) {
+                title = this.shop_info.shop_name;
+            }
+            console.log(path, 'path');
+            return {
+                title: title,
+                path: path,
+                success: res => {
+                    wx.showToast({
+                        title: "转发成功！"
+                    });
+                },
+                fail: res => {
+                    let msg = "转发失败！";
+                    if (/cancel/gi.test(res.errorMsg) > -1) {
+                        msg = "转发取消！";
+                    }
+                    wx.showToast({
+                        image: "/images/fail.png",
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>
+<style lang="less">
+    @import "../../pages/groupon/common.less";
+    @import "../../templates/coupon.less";
+    .index-page {
+        .popwin {
+            .coupon-content {
+                background: #FFF5D5;
+                position: fixed;
+                left: 50%;
+                top: 50%;
+                transform: translate(-50%, -50%);
+                z-index: 10;
+                padding: 0 20rpx;
+                width: 710rpx;
+                border-radius: 16rpx;
+                padding-bottom: 30rpx;
+                .title-bg {
+                    position: absolute;
+                    top: -98rpx;
+                    left: 50%;
+                    width: 388rpx;
+                    height: 196rpx;
+                    transform: translateX(-50%);
+                }
+                .title {
+                    font-size: 40rpx;
+                    color: #333;
+                    margin: 118rpx auto 30rpx;
+                    text-align: center;
+                }
+                .coupon-list {
+                    height: 500rpx;
+                }
+                .close {
+                    position: absolute;
+                    width: 60rpx;
+                    height: 60rpx;
+                    bottom: -90rpx;
+                    left: 50%;
+                }
+            }
+        }
+        .common-section {
+            background: #fff;
+        }
+        .index-coupon-list {
+            margin: 24rpx 0;
+            background: #f5f5f5;
+            scroll-view {
+                white-space: nowrap;
+                height: 78rpx;
+            }
+            .coupon-item {
+                width: 180rpx;
+                height: 78rpx;
+                margin-left: 30rpx;
+                position: relative;
+                display: inline-block;
+                background: url(http://yimi.artqiyi.com/data/static/applet_images/coupon/index-coupon-bg.png) no-repeat;
+                background-size: contain;
+                color: #FF552A;
+                font-size: 20rpx;
+                &.disabled {
+                    color: #999;
+                }
+                .item-desc {
+                    width: 140rpx;
+                    flex-direction: column;
+                    padding-left: 14rpx;
+                    align-items: flex-start;
+                    justify-content: center;
+                    height: 100%;
+                }
+                .item-price {
+                    font-size: 28rpx;
+                    margin-bottom: 8rpx;
+                }
+                .item-operate {
+                    color: #fff;
+                    width: 36rpx;
+                    writing-mode: vertical-lr;
+                    height: 100%;
+                    justify-content: center;
+                }
+                &:last-child {
+                    margin-right: 30rpx;
+                }
+                &.disabled {
+                    background-image: url(http://yimi.artqiyi.com/data/static/applet_images/coupon/index-coupon-disable-bg.png);
+                }
+            }
+        }
+        .banner-info {
+            position: relative;
+            width:750rpx;
+            .banner-list {
+                width: 100%;
+                height: 422rpx;
+                .slide-image {
+                    width: 100%;
+                }
+            }
+            @keyframes light {
+                0% {
+                    left: -100%
+                }
+                100% {
+                    left: 100%;
+                }
+            }
+            @keyframes line-top {
+                0% {
+                    left: -200%
+                }
+                100% {
+                    left: 100%;
+                }
+            }
+            @keyframes line-bottom {
+                0% {
+                    right: -200%
+                }
+                100% {
+                    right: 100%;
+                }
+            }
+            .invite-btn {
+                background: #fff;
+                height: 95rpx;
+                justify-content: center;
+                font-size: 32rpx;
+                color: #DDAD5E;
+                font-weight: bold;
+                .content {
+                    height: 48rpx;
+                    position: relative;
+                    overflow: hidden;
+                }
+                .light {
+                    position: absolute;
+                    left: -100%;
+                    top: 0;
+                    image {
+                        width: 180rpx;
+                        height: 88rpx;
+                    }
+                }
+                .line {
+                    position: absolute;
+                    height: 3rpx;
+                    width: 750rpx;
+                    &.line-top {
+                        top: 0;
+                        left: -200%;
+                    }
+                    &.line-bottom {
+                        bottom: 0;
+                        right: -200%;
+                    }
+                    image {
+                        width: 750rpx;
+                        height: 3rpx;
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                    }
+                }
+                .invite-image {
+                    width: 48rpx;
+                    height: 48rpx;
+                    margin-right: 10rpx;
+                }
+                .arrow-image {
+                    width: 15rpx;
+                    height: 25rpx;
+                    margin-left: 10rpx;
+                }
+            }
+            .shortcut-area {
+                position: absolute;
+                width: 180rpx;
+                height: 64rpx;
+                background: rgba(0, 0, 0, .2);
+                box-shadow: 0 0 8rpx 0 rgba(0, 0, 0, 0.1);
+                border-radius: 32rpx;
+                top: 30rpx;
+                right: 30rpx;
+                z-index: 10;
+                color: #fff;
+                font-size: 24rpx;
+                justify-content: center;
+                image {
+                    width: 22rpx;
+                    height: 22rpx;
+                    margin-right: 12rpx;
+                }
+            }
+            .search-bar {
+                width: 690rpx;
+                height: 64rpx;
+                border-radius: 64rpx;
+                background: rgba(0, 0, 0, .2);
+                margin-left:30rpx;
+                position: absolute;
+                top: 30rpx;
+                box-shadow: 0 0 8rpx 0 rgba(0, 0, 0, 0.1);
+                .search-icon {
+                    width: 28rpx;
+                    height: 28rpx;
+                    margin-left: 20rpx;
+                }
+                .search-input {
+                    font-size: 28rpx;
+                    color: #fff;
+                    margin-left: 12rpx;
+                }
+            }
+        }
+        .quick-navigation-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            .quick-navigation {
+                width: 100%;
+                background: #fff;
+                flex-wrap: wrap;
+                .item {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    width: 150rpx;
+                    height: 176rpx;
+                    image {
+                        width: 86rpx;
+                        height: 86rpx;
+                        margin: 22rpx 0 10rpx;
+                    }
+                    text {
+                        color: #666;
+                        font-size: 28rpx;
+                        line-height: 40rpx;
+                    }
+                }
+                &.hide-more {
+                    max-height: 352rpx;
+                    overflow: hidden;
+                }
+            }
+            .more {
+                width: 100%;
+                height: 40rpx;
+            }
+        }
+        .swiper {
+            background: #fff;
+            height: 354rpx;
+            width: 750rpx;
+            .swiper-item {
+                width: 630rpx;
+                height: 354rpx;
+                image {
+                    width: 630rpx;
+                    height: 354rpx;
+                }
+            }
+        }
+        .shortcut-area {
+            position: absolute;
+            width: 180rpx;
+            height: 64rpx;
+            background: rgba(0, 0, 0, .2);
+            border-radius: 32rpx;
+            top: 30rpx;
+            right: 30rpx;
+            z-index: 10;
+            color: #fff;
+            font-size: 24rpx;
+            justify-content: center;
+            box-shadow: 0 0 8rpx 0 rgba(0, 0, 0, 0.1);
+            image {
+                width: 28rpx;
+                height: 28rpx;
+                margin-right: 12rpx;
+            }
+        }
+        .goods-list-index {
+            border-top: none;
+            &:before {
+                display: none;
+            }
+        }
+        .banner-list {
+            width: 100%;
+            height: 422rpx;
+            .slide-image {
+                width: 100%;
+            }
+        }
+        .video-list {
+            .video-title {
+                padding: 40rpx 0;
+                justify-content: center;
+                image {
+                    width: 546rpx;
+                    height: 60rpx;
+                }
+            }
+        }
+    }
+    .video-list {
+        margin-top: 20rpx;
+    }
+    .video-item {
+        position: relative;
+        background: #fff;
+        margin-bottom: 18rpx;
+        border-bottom: 1px solid #f2f2f2;
+        overflow: hidden;
+        &:last-child {
+            margin-bottom: 0;
+        }
+        .playing {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.4);
+            &:before {
+                content: "正在播放";
+                color: #fff;
+                font-size: 22rpx;
+                width: 144rpx;
+                height: 48rpx;
+                border-radius: 24rpx;
+                line-height: 48rpx;
+                border: 1px solid #fff;
+                background: rgba(0, 0, 0, 0.2);
+                text-align: center;
+            }
+        }
+        .item-image-wrap {
+            position: relative;
+            &:after {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: -webkit-linear-gradient( top, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.5));
+            }
+            .triangle {
+                height: 0;
+                width: 0;
+                position: absolute;
+                bottom: 0;
+                left: 50%;
+                transform: translateX(-50%);
+                border-right: 16rpx solid transparent;
+                border-bottom: 16rpx solid #fff;
+                border-left: 16rpx solid transparent;
+                z-index: 11;
+            }
+            .timelength {
+                position: absolute;
+                top: 0;
+                left: 0;
+                z-index: 10;
+                .timelength-text {
+                    font-size: 22rpx;
+                    color: #fff;
+                    width: 108rpx;
+                    line-height: 40rpx;
+                    z-index: 11;
+                    text-indent: 36rpx;
+                }
+                .timelength-icon {
+                    width: 108rpx;
+                    height: 40rpx;
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                }
+            }
+            position: relative;
+            .item-image {
+                width: 100%;
+                height: 422rpx;
+                display: block;
+            }
+            .item-play {
+                position: absolute;
+                top: 0;
+                right: 0;
+                left: 0;
+                bottom: 0;
+                background-size: 100rpx;
+                justify-content: center;
+                z-index: 10;
+                image {
+                    width: 100rpx;
+                    height: 100rpx;
+                }
+            }
+        }
+        .item-title {
+            padding: 0 22rpx;
+            font-size: 30rpx;
+            color: #fff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            height: 98rpx;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            line-height: 98rpx;
+            text-shadow: 1rpx 1rpx 2rpx rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+    }
+</style>

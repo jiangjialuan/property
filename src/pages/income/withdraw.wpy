@@ -1,0 +1,253 @@
+<template>
+    <view class="withdraw-page">
+        <view class="balance-area flex">
+            <view class="tips">可提现</view>
+            <view class="balance">
+                ¥{{balance}}
+            </view>
+            <view class="withdraw-btn" @tap="withdraw">提现</view>
+        </view>
+        <navigator class="section-item flex widthdraw" url="/pages/income/withdraw-history">
+            <view class="item-text flex">提现记录</view>
+            <view class="arrow flex"></view>
+        </navigator>
+        <view class="bank-list">
+            <view class="bank-title flex">
+                <view>我的银行卡</view>
+                <view class="edit-btn" @tap="gotoBank('{{cardInfo.id}}')" wx:if="{{cardInfo.id}}">编辑</view>
+                <view class="add-btn" @tap="gotoBank('')" wx:else>+添加银行卡</view>
+            </view>
+            <view class="bank-item" wx:if="{{cardInfo.id}}">
+                <view class="bank-name">{{cardInfo.bank_name}}</view>
+                <view class="bank-code">{{cardInfo.card_no}}</view>
+            </view>
+        </view>
+    </view>
+</template>
+<script>
+import wepy from 'wepy';
+import store from '../../common/store';
+import api from '../../common/api';
+export default class Withdraw extends wepy.page {
+    config = {
+        'enablePullDownRefresh': true,
+        'navigationBarTitleText': '提现'
+    };
+
+    data = {
+        userInfo: {},
+        loading: true,
+        balance: '',
+        cardInfo: {}
+    };
+
+    methods = {
+        // 新增、编辑银行卡信息
+        gotoBank(id) {
+            let url = "bank";
+            if (id) url = `bank?id=${id}`;
+            wx.navigateTo({
+                url: url
+            });
+        },
+        // 提现
+        withdraw() {
+            if (this.balance < 1) {
+                return wx.showModal({
+                    content: "提现金额要满1元哦~",
+                    showCancel: false,
+                    confirmColor: '#379B00',
+                    confirmText: '知道了'
+                });
+            }
+            if (!this.cardInfo.id) {
+                return wx.showModal({
+                    content: "您必须添加银行卡才能提现~",
+                    showCancel: false,
+                    confirmColor: '#379B00',
+                    confirmText: '去添加',
+                    success: (res) => {
+                        if (res.confirm) {
+                            wx.navigateTo({
+                                url: 'bank'
+                            });
+                        }
+                    }
+                });
+            }
+            api.request({
+                url: api.withdraw_apply,
+                data: {
+                    act: 1,
+                    money: this.balance,
+                    card_id: this.cardInfo.id
+                },
+                method: 'POST'
+            }).then(json => {
+                this.balance = json.balance;
+                this.$apply();
+                wx.showModal({
+                    content: '提现申请已提交，平台将尽快打款至您的银行卡',
+                    showCancel: false,
+                    confirmColor: '#379B00',
+                    confirmText: '好的'
+                })
+            });
+        }
+    };
+
+    // 获取银行卡列表
+    getBankData() {
+        api.request({
+            url: api.user_bank_card,
+            data: {
+                act: 1
+            }
+        }).then(json => {
+            if (json.length > 0) {
+                this.cardInfo = json[0];
+                this.cardInfo.card_no = this.cardInfo.card_no.substring(0, 4) + "********" + this.cardInfo.card_no.substring(12);
+                this.$apply();
+            }
+        });
+    }
+
+    onPullDownRefresh() {
+        this.list = [];
+        this.page = 1;
+        this.hasNext = true;
+        this.loading = false;
+        this.$apply();
+
+        api.checkLogin().then(json => {
+            this.userInfo = json;
+            this.balance = json.balance;
+            this.getBankData();
+            this.$apply();
+            wx.stopPullDownRefresh();
+        });
+    }
+
+    onShow() {
+        api.getBackgroundColor().then(json => {
+            let { frontColor, backgroundColor, title } = json;
+            api.setBackgroundColor(frontColor, backgroundColor);
+        });
+    }
+
+    onLoad() {
+        api.checkLogin().then(json => {
+            this.userInfo = json;
+            this.balance = json.balance;
+            this.getBankData();
+            this.$apply();
+        });
+    }
+}
+
+</script>
+<style lang="less">
+.withdraw-page {
+    .balance-area {
+        height: 320rpx;
+        justify-content: center;
+        padding: 48rpx 0 32rpx;
+        background: #fff;
+        flex-direction: column;
+        .tips {
+            font-size: 24rpx;
+            color: #000;
+            margin-bottom: 32rpx;
+        }
+        .balance {
+            font-size: 60rpx;
+            color: #FF552A;
+        }
+        .withdraw-btn {
+            height: 52rpx;
+            line-height: 52rpx;
+            width: 218rpx;
+            text-align: center;
+            margin-top: 40rpx;
+            border: 1px solid #FF552A;
+            border-radius: 26rpx;
+            font-size: 28rpx;
+            color: #FF552A;
+            &.disable {
+                border-color: #999;
+                background: #999;
+                color: #fff;
+            }
+        }
+    }
+    .section-item {
+        min-height: 78rpx;
+        background: #fff;
+        padding: 0 22rpx;
+        border: none;
+        border-bottom: 1px solid #dedfe0;
+        justify-content: space-between;
+        &.widthdraw {
+            margin-top: 24rpx;
+        }
+        &:last-child {
+            border-bottom: none;
+        }
+        .item-text {
+            font-size: 30rpx;
+            color: #3d3d3d;
+            .tips {
+                font-size: 22rpx;
+                color: #999;
+            }
+        }
+        .arrow {
+            height: 90rpx;
+            justify-content: flex-end;
+            font-size: 24rpx;
+            color: #666;
+            &:after {
+                display: block;
+                content: '';
+                width: 20rpx;
+                height: 20rpx;
+                border-top: 2rpx solid #999;
+                border-right: 2rpx solid #999;
+                transform: rotate(45deg);
+            }
+        }
+    }
+    .bank-list {
+        margin-top: 18rpx;
+        .bank-title {
+            height: 100rpx;
+            justify-content: space-between;
+            padding: 0 22rpx;
+            font-size: 30rpx;
+            color: #3d3d3d;
+            background: #fff;
+            border-bottom: 1px solid #eee;
+            .add-btn {
+                color: #FF552A;
+            }
+            .edit-btn {
+                color: #999;
+            }
+        }
+        .bank-item {
+            height: 172rpx;
+            padding: 32rpx 22rpx;
+            color: #000;
+            background: #fff;
+            .bank-name {
+                font-size: 30rpx;
+                margin-bottom: 16rpx;
+            }
+            .bank-code {
+                font-size: 36rpx;
+            }
+        }
+    }
+}
+
+</style>

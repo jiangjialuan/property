@@ -1,0 +1,23 @@
+<template name="coupon-item">
+    <view class="coupon-item {{item.received?'disabled':''}} {{type}}" bindtap="receiveCoupon" data-item="{{item}}" data-type="{{type}}" wx:if="{{type == 'home'}}">
+        <view class="item-desc flex fl">
+            <view class="item-price">¥{{item.quota}}</view>
+            <text>{{item.type == '1'?'无门槛':'满' + item.min_order_money + '可用'}}</text>
+        </view>
+        <view class="item-operate fl flex {{item.received ?'disabled':''}}">{{item.received ?'已领取':'领取'}}</view>
+    </view>
+    <view class="coupon-item flex {{type}}" bindtap="receiveCoupon" data-item="{{item}}" data-type="{{type}}" wx:else>
+        <view class="item-content flex-item flex">
+            <view class="item-desc flex">
+                <view class="item-price">￥<text>{{item.quota}}</text></view>
+                <text>{{item.type == '1'?'无门槛':'满' + item.min_order_money + '可用'}}</text>
+            </view>
+            <view class="item-others flex">
+                <view class="item-name over-ellipsis">{{item.name}}</view>
+                <view class="use-range">{{item.use_range}}</view>
+                <text>{{item.begin_time}} - {{item.end_time}}</text>
+            </view>
+        </view>
+        <view class="item-operate fl flex {{item.received ?'disabled':''}}">{{item.received ?'已领取':'领取'}}</view>
+    </view>
+</template>

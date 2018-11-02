@@ -1,0 +1,665 @@
+<template>
+    <view class="index-page" id="mallIndex" wx:if="{{!loading}}">
+        <view class="search-bar" style="background: {{backgroundColor}};" @tap="goSearch">
+            <view class="searchInput"><image class="search-icon" src="/images/mall/search.png"/><text>搜索您想要的商品</text></view>
+        </view>
+        <view class="class-info" wx:if="{{classList.length}}">
+            <view class="class-bar product-type" >
+                <scroll-view scroll-y scroll-into-view="class-item-{{index}}" scroll-with-animation="true">
+                    <view wx:for="{{classList}}" wx:for-index="index" wx:for-item="classItem" wx:key="index" id="class-item-{{index}}" class="product-item class-item {{id == classItem.id ? 'active' : ''}}" @tap="changeGroup('{{classItem.id}}','{{index}}')"><view>{{classItem.name}}</view></view>
+                </scroll-view>
+            </view>
+        </view>
+        <view class="box">
+            <import src="/templates/horizontal-goods-vitem.wxml" />
+            <!--margin-top:{{classList.length ? classList[index].child.length ? '190rpx':'90rpx':'0'}};-->
+            <view class="common-section" style="margin-left:{{classList.length ? '160rpx':'0'}}">
+                <view class="goods-list" wx:if="{{goods_info.list}}">
+                    <view class="class-bar sub-class-bar" wx:if="{{classList[index].child.length}}">
+                        <!--scroll-with-animation="true"-->
+                        <view  scroll-into-view="class-item-{{sub_index}}" >
+                            <text wx:for="{{classList[index].child}}"
+                                  wx:for-index="sub_index"
+                                  wx:for-item="classItem"
+                                  wx:key="sub_index"
+                                  wx:if="{{sub_index<5}}"
+                                  id="class-item-{{sub_index}}"
+                                  class="class-item {{sub_id == classItem.id ? 'active' : ''}}"
+                                  @tap="changeSubGroup('{{classItem.id}}','{{sub_index}}')">{{classItem.name}}</text>
+                            <view @tap="elseGroup({{index}})" wx:if="{{classList[index].child.length>5}}" class="class-item {{isElse ? 'activeelse' : 'elseClass'}}" >
+                                <view wx:if="{{isElse}}"><text>{{elseName}}</text><image src="/images/mall/Combined-w.png"/></view>
+                                <view wx:else><text>其它</text><image src="/images/mall/Combined.png"/></view>
+                                <!--{{isElse?elseName:'其它'}}-->
+                            </view>
+                        </view>
+                    </view>
+                    <view class="flex" style="justify-content:space-between;flex-wrap: wrap; flex-direction: column">
+                        <template is="horizontal-goods-item" data="{{item}}" wx:for="{{goods_info.list}}" wx:key="index" />
+                    </view>
+                    <view class="loading" wx:if="{{goods_info.loading}}">正在加载中...</view>
+                    <view class="no-data" wx:if="{{goods_info.list.length && !goods_info.loading}}">(@ο@) 哇～我是有底线的！</view>
+                    <view class="no-data" wx:if="{{!goods_info.list.length && !goods_info.loading}}">
+                        <image src="../../images/no_product.png" /> 暂无更多产品
+                    </view>
+                </view>
+            </view>
+        </view>
+        <!--<view wx:if="{{userInfo.is_agency == 0}}">
+            <button class="join-btn flex" open-type="getUserInfo" bindgetuserinfo="userLogin('share')" plain wx:if="{{!userInfo.name}}">
+                <image src="../../images/account/join.png" />
+            </button>
+            <view class="join-btn flex" wx:else @tap="navigateTo('/pages/main/join')">
+                <image src="../../images/account/join.png" />
+            </view>
+        </view>-->
+        <image class="go-to-top-btn" src="/images/go_to_top.png" wx:if="{{goToTopBtnShow}}" @tap.stop="pageScrollTo(0)" />
+        <view class="bg"></view>
+        <view class="alertbg" wx:if="{{isAlertGroup}}" @tap="cancelAlert"></view>
+        <scroll-view scroll-y class="alertGroup"  wx:if="{{isAlertGroup}}">
+            <text wx:for="{{classList[groupIndex].child}}"
+                  wx:for-index="sub_index"
+                  wx:for-item="classItem"
+                  wx:key="sub_index"
+                  id="class-item-{{sub_index}}"
+                  class="class-item {{sub_id == classItem.id ? 'active' : ''}}"
+                  @tap="changeSubGroup('{{classItem.id}}','{{sub_index}}')">{{classItem.name}}</text>
+        </scroll-view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    import loadCode from '../../common/loadCode';
+    export default class Index extends wepy.page {
+        config = {
+            'enablePullDownRefresh': true,
+        };
+        data = {
+            classList: [],
+            goods_info: {
+                loading: false,
+                list: [],
+                page: 1,
+                has_next: true
+            },
+            id: 0,
+            sub_id: 0,
+            index: 0,
+            sub_index: 0,
+            loading: true,
+            userInfo: {},
+            group_id: 0,
+            title: '',
+            scrollIntoView: 'class-item-0',
+            userInfo: {},
+            windowHeight: 0,
+            goToTopBtnShow: false,
+            isAlertGroup:false,
+            groupIndex:'',
+            isElse:false,
+            elseName:'其它',
+            backgroundColor:""
+        };
+        methods = {
+            pageScrollTo(px) {
+                api.pageScrollTo(px)
+            },
+            gotoDetail(e) {
+                let {
+                    item
+                } = e.currentTarget.dataset;
+                api.navigateTo(`/pages/${item.is_groupon?'groupon':item.type}/detail?goods_id=${item.bid}`);
+            },
+            userLogin(type, e) {
+                api.userLogin(type, e).then(json => {
+                    let data = json.data.data;
+                    this.userInfo = data;
+                    this.$apply();
+                    if (type == 'share') {
+                        wx.navigateTo({
+                            url: `/pages/main/join`
+                        });
+                    }
+                });
+            },
+            navigateTo(url) {
+                api.navigateTo(url);
+            },
+            changeGroup(id, index) {
+                this.id = id;
+                this.sub_id = id;
+                this.index = index;
+                this.group_id = id;
+                this.goods_info = {
+                    loading: false,
+                    list: [],
+                    page: 1,
+                    has_next: true
+                };
+                this.getGoodsList();
+                this.isElse=false;
+                this.elseName='其它';
+            },
+            changeSubGroup(id, index) {
+                this.sub_id = id;
+                this.sub_index = index;
+                this.group_id = id;
+                this.goods_info = {
+                    loading: false,
+                    list: [],
+                    page: 1,
+                    has_next: true
+                };
+                this.getGoodsList();
+                this.elseActive();
+            },
+            elseGroup(index) {
+                this.groupIndex=index;
+                this.isAlertGroup=true;
+                this.$apply();
+            },
+            cancelAlert(){
+                this.isAlertGroup=false;
+                this.groupIndex='';
+                this.$apply();
+            },
+            goSearch(){
+                api.navigateTo('/pages/main/search');
+            }
+        };
+        elseActive(){
+            this.isAlertGroup=false;
+            if(this.groupIndex){
+                for(var i=0;i<this.classList[this.groupIndex].child.length;i++){
+                    if(i>=5&&this.sub_id==this.classList[this.groupIndex].child[i].id){
+                        this.isElse=true;
+                        this.elseName=this.classList[this.groupIndex].child[i].name;
+                        this.$apply();
+                        break;
+                    }else{
+                        this.isElse=false;
+                        this.$apply();
+                    }
+                }
+            }
+            this.$apply();
+        }
+        getGroupList(type, callback) {
+            let uid = wx.getStorageSync('uid'),
+                sdk_zbinfo = wx.getStorageSync('sdk_zbinfo');
+            api.request({
+                url: api.group_list,
+                data: {
+                    page: this.goods_info.page,
+                    id: uid,
+                    token: sdk_zbinfo.token,
+                    sign: sdk_zbinfo.sign,
+                    ts: sdk_zbinfo.ts,
+                    zb_id: api.buid,
+                    shop_id: api.shop_id
+                }
+            }).then(json => {
+                if (json.length) {
+                    if (type == 'hand' && JSON.stringify(this.classList) != JSON.stringify(json)) {
+                        this.group_id = 0;
+                        this.id = 0;
+                        this.sub_id = 0;
+                        this.index = 0;
+                        this.sub_index = 0;
+                    }
+                    this.classList = json;
+                    this.$apply();
+                } else {
+                    this.resetData();
+                }
+                this.loading = false;
+                this.$apply();
+                callback && callback(json);
+            }).catch(() => {
+                this.loading = false;
+                this.$apply();
+            });
+        }
+        resetData() {
+            this.goods_info = {
+                loading: false,
+                list: [],
+                page: 1,
+                has_next: true
+            };
+            this.classList = [];
+            this.id = 0;
+            this.sub_id = 0;
+            this.index = 0;
+            this.sub_index = 0;
+            this.loading = true;
+            this.userInfo = {};
+            this.$apply();
+        }
+        onReachBottom() {
+            if (!this.goods_info.has_next) return;
+            this.getGoodsList();
+        }
+        onPullDownRefresh() {
+            this.goods_info = {
+                list: [],
+                page: 1,
+                has_next: true
+            };
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                this.getGroupList('hand', () => {
+                    this.getGoodsList();
+                    wx.stopPullDownRefresh();
+                });
+            });
+        }
+        getGoodsList() {
+            if (this.goods_info.loading) return;
+            this.goods_info.loading = true;
+            this.$apply();
+            let uid = wx.getStorageSync('uid'),
+                sdkInfo = wx.getStorageSync('sdk_zbinfo');
+            let data = {
+                page: this.goods_info.page,
+                id: uid,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts,
+                zb_id: api.buid,
+                group_id: this.group_id,
+                version: api.version,
+                shop_id: api.shop_id
+            };
+            api.request({
+                url: api.goods,
+                data: data
+            }).then(json => {
+                this.goods_info.list = this.goods_info.list.concat(json.list);
+                this.goods_info.has_next = json.has_next;
+                this.goods_info.page++;
+                this.goods_info.loading = false;
+                this.getBanner();
+                this.$apply();
+                api.loading.hide();
+            }).catch(() => {
+                this.goods_info.loading = false;
+                this.$apply();
+            });
+        }
+        getBanner() {
+            api.request({
+                url: api.get_banner,
+                data: {
+                    act: 1,
+                    shop_id: parseInt(api.shop_id) || api.buid
+                }
+            }).then(json => {
+                if (json.shop_info.shop_name) {
+                    api.setTitle(json.shop_info.shop_name);
+                } else {
+                    api.setTitle(this.title);
+                }
+            });
+        }
+        onPageScroll(e) {
+            if (this.windowHeight) {
+                this.goToTopBtnShow = e.scrollTop >= this.windowHeight;
+                this.$apply();
+            }
+        }
+        onShow() {
+            loadCode.getCode();
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                this.title = title;
+                this.backgroundColor=backgroundColor;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+        }
+        onLoad(options) {
+            api.loading.show();
+            this.resetData();
+            api.checkLogin().then(json => {
+                api.from_uid = options.from_uid || api.from_uid;
+                api.shop_id = options.shop_id || parseInt(api.shop_id);
+                this.userInfo = json;
+                this.windowHeight = wx.getSystemInfoSync().windowHeight;
+                this.$apply();
+                let uid = wx.getStorageSync('uid'),
+                    sdkInfo = wx.getStorageSync('sdk_zbinfo');
+                const callback = (json) => {
+                    let {
+                        id
+                    } = options;
+                    if (!id) return;
+                    json.map((item, i) => {
+                        if (item.id == id) {
+                            this.id = id;
+                            this.sub_id = id;
+                            this.group_id = id;
+                            this.index = i;
+                            this.$apply();
+                        } else {
+                            item.child && item.child.map((child, j) => {
+                                if (child.id == id) {
+                                    this.id = item.id;
+                                    this.sub_id = id;
+                                    this.group_id = id;
+                                    this.index = i;
+                                    this.sub_index = j;
+                                }
+                            });
+                            this.$apply();
+                        }
+                    });
+                }
+                if (!sdkInfo) {
+                    api.request({
+                        url: api.get_sdk_zbinfo,
+                        data: {
+                            uid: uid
+                        }
+                    }).then(json => {
+                        wx.setStorageSync('sdk_zbinfo', json);
+                        this.getGroupList('', (res) => {
+                            callback(res);
+                            this.getGoodsList();
+                        });
+                    });
+                } else {
+                    this.getGroupList('', (res) => {
+                        callback(res);
+                        this.getGoodsList();
+                    });
+                }
+            });
+        }
+        onShareAppMessage(res) {
+            let uid = api.userInfo.is_agency ? api.userInfo.uid : api.from_uid ? api.from_uid : api.userInfo.uid;
+            console.log(`/pages/mall/index?from_uid=${uid}&shop_id=${api.shop_id}`);
+            return {
+                title: '商城',
+                path: `/pages/mall/index?from_uid=${uid}&shop_id=${api.shop_id}`,
+                success: res => {
+                    wx.showToast({
+                        title: '转发成功！'
+                    });
+                },
+                fail: res => {
+                    let msg = '转发失败！';
+                    if (/cancel/ig.test(res.errorMsg) > -1) {
+                        msg = '转发取消！'
+                    }
+                    wx.showToast({
+                        image: '../../images/fail.png',
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>
+<style lang="less">
+    @import "./common.less";
+    #mallIndex{
+        .search-bar{
+            height:84rpx;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: fixed;
+            flex-direction: row;
+            top:0px;
+            right:0px;
+            left:0px;
+            z-index:10;
+            .search-icon{
+                width:36rpx;
+                height:36rpx;
+                margin-right:10rpx;
+            }
+            .searchInput{
+                height:64rpx;
+                width:690rpx;
+                background:rgba(255,255,255,1);
+                border-radius: 8rpx;
+                color:rgba(153,153,153,1);
+                align-items: center;
+                justify-content: center;
+                position: fixed;
+                flex-direction: row;
+                display: flex;
+            }
+            .search-btn {
+                width: 125rpx;
+                height: 80rpx;
+                font-size: 32rpx;
+                line-height: 80rpx;
+                color: #fff;
+                text-align: center;
+            }
+
+        }
+        .alertbg{
+            position:fixed;
+            top:0px;
+            right:0px;
+            left:0px;
+            bottom:0px;
+            z-index:11;
+            background:rgba(0,0,0,1);
+            opacity:0.5;
+        }
+        .alertGroup{
+            position:fixed;
+            padding:30rpx;
+            z-index:12;
+            top:0px;
+            right:0px;
+            left:160rpx;
+            bottom:0px;
+            background:#fff;
+            .class-item{
+                width:160rpx;
+                height:64rpx;
+                overflow: hidden;
+                text-overflow:ellipsis;
+                white-space: nowrap;
+                padding:5rpx;
+                background:rgba(245,245,245,1);
+                border-radius:4rpx;
+                margin-right:30rpx;
+                text-align: center;
+                color:#666;
+                margin-bottom:20rpx;
+                line-height:64rpx;
+                display: inline-block;
+                &.active{
+                    background:rgba(255,109,68,1);
+                    color:#fff;
+                }
+            }
+            .active{
+                background:rgba(255,239,229,1) !important;
+                color:#FF6D44 !important;
+            }
+
+        }
+        .bg{
+            position:fixed;
+            top:0px;
+            right:0px;
+            left:0px;
+            bottom:0px;
+            z-index:0;
+            background: #fff;
+        }
+        .box{
+            z-index: 2;
+            position:relative;
+            padding-top:84rpx;
+        }
+        .product-type{
+            background:rgba(245,245,245,1);
+            .product-item{
+                border-bottom:none;
+                font-size:26rpx;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height:auto;
+                min-height:90rpx;
+                max-height:130rpx;
+                padding:34rpx 0px;
+                &:before{
+                    content:'';
+                    width:4px;
+                    height:26rpx;
+                    border-left:4px solid transparent;
+                }
+                view{
+                    overflow: hidden;
+                    max-height:72rpx;
+                    width:140rpx;
+                    padding-left:20rpx;
+                    line-height: 36rpx;
+                    word-break:break-all;
+                    overflow:hidden;
+                    text-overflow:ellipsis;
+                    display:-webkit-box;
+                    -webkit-line-clamp:2;
+                    -webkit-box-orient:vertical;
+                    white-space:pre-wrap;
+                    text-align:left;
+                    color:#666666;
+                    font-size:26rpx;
+                }
+                &.active{
+                    background:rgba(255,255,255,1);
+                    &:before{
+                        content:'';
+                        width:4px;
+                        height:26rpx;
+                        border-left:4px solid #FF6D44;
+                    }
+                    view{
+                        /*border-left:4px solid #FF6D44;*/
+                        font-weight:bold;
+                        color:#333333;
+
+                    }
+                }
+            }
+        }
+        .common-section{
+            margin-top:0px;
+            .goods-list{
+                padding:20rpx 0rpx 20rpx 20rpx;
+
+                .goods-item{
+                    box-shadow:none;
+                    width:100%;
+                    display: flex;
+                    flex-direction: row;
+                    height:200rpx;
+                    padding:20rpx 30rpx 20rpx 0px;
+                    margin-bottom:0px;
+                    &:first-child{
+                        padding:0px 30rpx 20rpx 0px;
+                    }
+                    .item-image{
+                        width:160rpx;
+                        height:160rpx;
+                    }
+                    .goods-desc{
+                        width:380rpx;
+                    }
+                    .goods-btn{
+                        width:160rpx;
+                        height:48rpx;
+                        border-radius:4rpx;
+                        border:2rpx solid rgba(255,85,42,1);
+                    }
+                }
+            }
+
+            .sub-class-bar{
+                overflow: hidden;
+                max-height:180rpx;
+                .class-item{
+                    width:160rpx;
+                    height:66rpx;
+                    overflow: hidden;
+                    text-overflow:ellipsis;
+                    white-space: nowrap;
+                    padding:5rpx;
+                    background:rgba(245,245,245,1);
+                    border-radius:4rpx;
+                    margin-right:30rpx;
+                    line-height: 66rpx;
+                    text-align: center;
+                    color:#666;
+                    margin-bottom:20rpx;
+                    display: inline-block;
+                    font-size:24rpx;
+                    box-sizing:border-box;
+                    &.active{
+                        background:rgba(255,239,229,1);
+                        color:#FF6D44;
+                    }
+                    image{
+                        width:24rpx;
+                        height:16rpx;
+                        vertical-align: middle;
+                        margin-left:10rpx;
+                    }
+                }
+
+            }
+        }
+        .elseClass{
+            background: #fff !important;
+            border:1px solid rgba(255,109,68,1);
+            color:#FF6D44 !important;
+            line-height: 60rpx !important;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            view{
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+        }
+        .activeelse{
+            border:1px solid rgba(255,109,68,1);
+            background:rgba(255,109,68,1) !important;
+            color:#fff !important;
+            line-height: 60rpx !important;
+            display: inline-flex;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            view{
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                text{
+                    overflow: hidden;
+                    text-overflow:ellipsis;
+                    white-space: nowrap;
+                    display:inline-block;
+                    width:110rpx;
+                    height:60rpx;
+                }
+            }
+        }
+    }
+</style>

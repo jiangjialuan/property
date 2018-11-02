@@ -1,0 +1,184 @@
+<template>
+    <view class="container" id="categorySearch">
+        <view class="search-bar" style="background: {{backgroundColor}};">
+            <image class="search-icon" src="/images/mall/search.png"/>
+            <input type="text" class="searchInput" value="{{name}}" @input="nameInput" placeholder="请输入商品服务关键字"/>
+            <view class="search-btn" style="{{backgroundColor=='#ffffff'?'color: #666;':''}}" @tap="search">搜索</view>
+        </view>
+        <view class="section">
+            <view class="title">
+                <text>{{category.c}}</text>
+                <text>{{category.n}}</text>
+            </view>
+            <view class="section-item flex" wx:for="{{category.items}}" wx:key="index" data-item="{{item}}" >
+                <view class="item-text flex">
+                    <text class="code" wx:if="{{item.c}}">{{item.c}}</text>
+                    <text class="name">{{item.n}}</text>
+                </view>
+               <!-- <view class="arrow-icon flex"></view>-->
+            </view>
+        </view>
+    </view>
+</template>
+
+<script>
+    import wepy from 'wepy';
+    import api from '../../common/api';
+    export default class Index extends wepy.page {
+        config = {
+            navigationBarTitleText: '商品类别查询服务'
+        }
+        components = {}
+
+        // mixins = [testMixin]
+
+        data = {
+            backgroundColor:'',
+            category:{},
+            pcode:'',
+            name:'',
+        }
+
+        computed = {}
+
+        methods = {
+            goSecond(code){
+                api.navigateTo('/pages/property/category_search3?pcode='+code);
+            },
+            nameInput(e){
+                this.name = e.detail.value;
+                this.$apply();
+            },
+            search(){
+                if(this.name==''){
+                    wx.showModal({
+                        title: '提示',
+                        content: '搜索关键字不能为空',
+                        showCancel: false
+                    });
+                }else
+                    api.navigateTo('/pages/property/category_search4?name='+this.name);
+            }
+        }
+
+        events = {}
+
+        onLoad(options) {
+            console.log(options);
+            this.pcode=options.pcode;
+            this.$apply();
+        }
+        getListFirst(){
+            api.request({
+                url: api.get_intel,
+                data:{
+                    pcode:this.pcode
+                }
+            }).then((res)=>{
+                this.category=res;
+                this.$apply();
+            });
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                let { frontColor, backgroundColor } = json;
+                this.backgroundColor = backgroundColor;
+                this.$apply();
+                api.setBackgroundColor(frontColor, backgroundColor);
+                this.getListFirst();
+            });
+        }
+    }
+</script>
+<style lang="less">
+    #categorySearch {
+        padding-top:84rpx;
+        .search-bar{
+            height:84rpx;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            position: fixed;
+            top:0px;
+            left:0px;
+            right:0px;
+            z-index:9;
+            .search-icon{
+                width:36rpx;
+                height:36rpx;
+                position: relative;
+                z-index: 2;
+                margin-right:-50rpx;
+                margin-top:14rpx;
+            }
+            .searchInput{
+                height:62rpx;
+                width:500rpx;
+                background:rgba(255,255,255,1);
+                border-radius: 8rpx;
+                padding:0rpx 15rpx 0rpx 60rpx;
+            }
+            .search-btn {
+                width: 125rpx;
+                height: 80rpx;
+                font-size: 32rpx;
+                line-height: 60rpx;
+                color: #fff;
+                text-align: center;
+            }
+
+        }
+        .section {
+            background: #fff;
+            margin-top: 18rpx;
+            .title{
+                color:#409EFF;
+                padding:10rpx 30rpx;
+                text:first-child{
+                    margin-right:30rpx;
+                }
+            }
+            .section-item {
+                background: #fff;
+                min-height: 78rpx;
+                padding: 0 30rpx;
+                border: none;
+                border-radius: 0;
+                border-bottom: 1px solid #e6e6e6;
+                justify-content: space-between;
+                &.section-title {
+                    border-bottom: none;
+                }
+                &:after {
+                    border-radius: 0;
+                    border: none;
+                }
+                &:last-child {
+                    border-bottom: none;
+                }
+                .item-text {
+                    font-size: 28rpx;
+                    color: #3d3d3d;
+                    .tips {
+                        font-size: 18rpx;
+                        color: #999;
+                    }
+                    .code{
+                        margin-right:30rpx;
+                        color:#999;
+                        font-size: 22rpx;
+                    }
+                }
+                .nick-name {
+                    color: #999;
+                    font-size: 28rpx;
+                }
+                .icon {
+                    width: 40rpx;
+                    height: 40rpx;
+                    margin-right: 12rpx;
+                }
+            }
+        }
+    }
+</style>

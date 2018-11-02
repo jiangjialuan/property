@@ -1,0 +1,42 @@
+@import "../../common/basic.less";
+.index-page {
+    .product-type {
+        height: 100%;
+        z-index: 10;
+        background: #fff;
+        .product-item {
+            height: 90rpx;
+            line-height: 90rpx;
+            font-size: 32rpx;
+            width:160rpx;
+            display: block;
+            text-align: center;
+            border-bottom: 4rpx solid #fff;
+            color: #999;
+            padding:0rpx;
+            margin:0px;
+            &.active {
+                color: @active-color;
+                border-bottom-color: @active-color;
+            }
+        }
+    }
+    .goods-list {
+        padding: 30rpx 30rpx 0;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        .goods-item {
+            margin-bottom: 30rpx;
+        }
+    }
+    background: #f2f2f2;
+    .no-data {
+        width: 100%;
+        image {
+            width: 481rpx;
+            height: 160rpx;
+            margin: 320rpx auto 40rpx;
+            display: block;
+        }
+    }
+}

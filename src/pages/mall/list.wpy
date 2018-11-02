@@ -1,0 +1,192 @@
+<template>
+    <view class="index-page" wx:if="{{!loading}}">
+        <import src="/templates/horizontal-goods-item.wxml" />
+        <view class="goods-list flex">
+            <template is="horizontal-goods-item" data="{{item}}" wx:for="{{goods_info.list}}" wx:key="index" />
+            <view class="loading" wx:if="{{goods_info.loading}}">正在加载中...</view>
+            <view class="no-data" wx:if="{{goods_info.list.length && !goods_info.loading}}">(@ο@) 哇～我是有底线的！</view>
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    import loadCode from '../../common/loadCode';
+    export default class Index extends wepy.page {
+        config = {
+            'enablePullDownRefresh': true,
+        };
+        data = {
+            loading: true,
+            userInfo: {},
+            product_type: '',
+            product_name: '',
+            goods_info: {
+                loading: false,
+                list: [],
+                page: 1,
+                has_next: true
+            }
+        };
+        methods = {
+            gotoDetail(e) {
+                let {
+                    item
+                } = e.currentTarget.dataset;
+                api.navigateTo(`/pages/${item.is_groupon?'groupon':item.type}/detail?goods_id=${item.bid}`);
+            },
+            userLogin(type, e) {
+                api.userLogin(type, e).then(json => {
+                    let data = json.data.data;
+                    this.userInfo = data;
+                    this.$apply();
+                    if (type == 'share') {
+                        wx.navigateTo({
+                            url: `/pages/main/join`
+                        });
+                    }
+                });
+            },
+            navigateTo(url) {
+                api.navigateTo(url);
+            }
+        };
+        resetData() {
+            this.goods_info = {
+                loading: false,
+                list: [],
+                page: 1,
+                has_next: true
+            };
+            this.loading = true;
+            this.userInfo = {};
+            this.$apply();
+        }
+        onReachBottom() {
+            if (!this.goods_info.has_next) return;
+            this.getGoodsList();
+        }
+        onPullDownRefresh() {
+            this.goods_info = {
+                loading: false,
+                list: [],
+                page: 1,
+                has_next: true
+            };
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                this.getGoodsList(() => {
+                    wx.stopPullDownRefresh();
+                });
+            });
+        }
+        getGoodsList(callback) {
+            if (this.goods_info.loading) return;
+            this.goods_info.loading = true;
+            this.$apply();
+            let uid = wx.getStorageSync('uid'),
+                sdkInfo = wx.getStorageSync('sdk_zbinfo');
+            let data = {
+                page: this.goods_info.page,
+                id: uid,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts,
+                zb_id: api.buid,
+                group_id: this.group_id,
+                version: api.version,
+                shop_id: api.shop_id,
+                product_type: this.product_type
+            };
+            api.request({
+                url: api.goods,
+                data: data
+            }).then(json => {
+                json.list.map(item => {
+                    item.hide_btn = true;
+                    if (item.type == 'subscribe') {
+                        item.star_levels = api.renderStar(item.star);
+                    }
+                });
+                this.goods_info.list = this.goods_info.list.concat(json.list);
+                this.goods_info.has_next = json.has_next;
+                this.goods_info.page++;
+                this.goods_info.loading = false;
+                this.loading = false;
+                this.$apply();
+                api.loading.hide();
+                callback && callback();
+            }).catch(() => {
+                this.goods_info.loading = false;
+                this.loading = false;
+                api.loading.hide();
+                this.$apply();
+            });
+        }
+        onShow() {
+            loadCode.getCode();
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    title
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+            });
+        }
+        onLoad(options) {
+            api.loading.show();
+            this.resetData();
+            api.checkLogin().then(json => {
+                api.from_uid = options.from_uid || api.from_uid;
+                api.shop_id = options.shop_id || parseInt(api.shop_id);
+                this.product_type = options.product_type || this.product_type;
+                this.product_name = options.product_name;
+                api.setTitle(this.product_name);
+                this.userInfo = json;
+                this.$apply();
+                let uid = wx.getStorageSync('uid'),
+                    sdkInfo = wx.getStorageSync('sdk_zbinfo');
+                if (!sdkInfo) {
+                    api.request({
+                        url: api.get_sdk_zbinfo,
+                        data: {
+                            uid: uid
+                        }
+                    }).then(json => {
+                        wx.setStorageSync('sdk_zbinfo', json);
+                        this.getGoodsList();
+                    });
+                } else {
+                    this.getGoodsList();
+                }
+            });
+        }
+        onShareAppMessage(res) {
+            let uid = api.userInfo.is_agency ? api.userInfo.uid : api.from_uid ? api.from_uid : api.userInfo.uid;
+            return {
+                title: this.product_name,
+                path: `/pages/mall/list?product_type=${this.product_type}&product_name=${this.product_name}&shop_id=${api.shop_id}`,
+                success: res => {
+                    wx.showToast({
+                        title: '转发成功！'
+                    });
+                },
+                fail: res => {
+                    let msg = '转发失败！';
+                    if (/cancel/ig.test(res.errorMsg) > -1) {
+                        msg = '转发取消！'
+                    }
+                    wx.showToast({
+                        image: '../../images/fail.png',
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>
+<style lang="less">
+    @import "./common.less";
+</style>

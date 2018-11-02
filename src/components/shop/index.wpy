@@ -1,0 +1,72 @@
+<template>
+    <view class="shop-index" hidden="{{!show}}" catchtouchmove='true'>
+        <view class="layer" style="z-index: 11;" @tap.stop="hideShop"></view>
+        <view class="popwin">
+            <view class="close_icon" @tap.stop="hideShop"></view>
+            <goodsList hidden="{{pageIndex != 'list'}}" />
+            <goodsSpec hidden="{{pageIndex != 'spec'}}" />
+        </view>
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import GoodsList from './list';
+    import GoodsSpec from './spec';
+    export default class Index extends wepy.component {
+        components = {
+            goodsList: GoodsList,
+            goodsSpec: GoodsSpec,
+        };
+        data = {
+            pageIndex: 'list',
+            show: false
+        };
+        methods = {
+            hideShop() {
+                this.show = false;
+                this.pageIndex = 'list';
+                this.$emit('hideSpecShop');
+                this.$apply();
+            }
+        };
+        spec(data) {
+            this.pageIndex = 'spec';
+            this.show = true;
+            this.$apply();
+            this.$invoke('goodsSpec', 'showPop', data);
+        }
+        submit(data) {
+            this.$invoke('goodsSpec', 'confirmBtn', data);
+        }
+        events = {
+            hideShop() {
+                this.show = false;
+                this.pageIndex = 'list';
+                this.$emit('hideSpecShop');
+                this.$apply();
+            },
+            showSpec(type, url) {
+                this.pageIndex = 'spec';
+                this.show = true;
+                this.$apply();
+                this.$invoke('goodsSpec', 'showPop', type, url);
+            },
+            showList(data) {
+                this.pageIndex = 'list';
+                this.show = true;
+                this.$apply();
+                this.$invoke('goodsList', 'show', data);
+            },
+            showConfirm(data) {
+                this.$invoke('goodsSpec', 'confirmBtn', data);
+            }
+        }
+    }
+</script>
+<style lang="less">
+    .shop-index {
+        .popwin {
+            top: 306rpx;
+        }
+    }
+</style>

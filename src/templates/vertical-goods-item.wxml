@@ -1,0 +1,42 @@
+<template name="vertical-goods-item">
+    <view class="item flex" bindtap="gotoDetail" data-item="{{item}}" wx:if="{{item.type == 'goods' || item.type == 'virtual_goods' || item.type == 'consult'}}">
+        <view class="item-image">
+            <view class="join-number" wx:if="{{item.group_people}}">
+                <text>{{item.group_people}}人团</text>
+            </view>
+            <image src="{{item.image}}" mode="aspectFill"  class="goods-image"/>
+            <view class="goods-mark sold-out" wx:if="{{(item.type == 'goods' || item.type == 'virtual_goods') && !item.stock}}">
+                <image src="/images/sold-out.png" mode="aspectFit" />
+            </view>
+        </view>
+        <view class="goods-info flex-item flex">
+            <view class="goods-title text-over-ellipsis">{{item.wname}}</view>
+            <view class="group-price flex" wx:if="{{item.is_groupon}}">
+                <view class="current-price">¥<text>{{item.current_price}}</text></view>
+                <view class="origin-price">¥{{item.price}}</view>
+            </view>
+            <view class="group-price flex" wx:elif="{{item.type !='consult'}}">
+                <view class="current-price">¥{{item.current_price}}</view>
+            </view>
+            <view class="goods-sale" wx:if="{{item.is_groupon}}">
+                <view class="group-tips">开团立减{{item.save_price}}元</view>
+            </view>
+            <view class="goods-sale flex" wx:else>
+                <image src="/images/coupon/coupon-icon.png" mode="aspectFit" class="coupon-icon" wx:if="{{item.has_coupon}}"/>销量{{item.sale_num}}
+            </view>
+            <view class="goods-operate flex" wx:if="{{item.is_groupon}}">
+                <view class="buy-btn">去拼团</view>
+            </view>
+            <view class="goods-operate flex" wx:else>
+                <view></view>
+                <view class="buy-btn" wx:if="{{item.type=='goods'}}" catchtap="openSpecLink" data-item="{{item}}">
+                    加入购物车
+                </view>
+                <view class="buy-btn" wx:elif="{{item.type == 'virtual_goods'}}" catchtap="openSpecLink" data-item="{{item}}">
+                    立即购买
+                </view>
+                <view class="buy-btn" wx:elif="{{item.type=='consult'}}">立即咨询</view>
+            </view>
+        </view>
+    </view>
+</template>

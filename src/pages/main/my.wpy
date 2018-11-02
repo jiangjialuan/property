@@ -1,0 +1,386 @@
+<template>
+    <view class="my-page">
+        <import src="/templates/member_level_progress.wxml" />
+        <view class="user-info flex">
+            <image class="user-logo" src="{{userInfo.name?userInfo.head_pic:'/images/common/user-logo.png'}}" />
+            <button class="login-btn user-name" plain open-type="getUserInfo" bindgetuserinfo="userLogin('login')" wx:if="{{!userInfo.name}}">去登录</button>
+            <block wx:else>
+                <view class="user-name flex">{{userInfo.name}}
+                    <view class="member-state" wx:if="{{!userInfo.member_phone}}">未绑定</view>
+                </view>
+                <block wx:if="{{!userInfo.member_phone}}">
+                    <view class="member-tips not-member">绑定手机号，成为专属会员{{userInfo.open_member?'，享受会员折扣':''}}</view>
+                    <view class="bind-btn" @tap="navigateTo('/pages/member/bind_phone')">去绑定</view>
+                </block>
+                <block wx:else>
+                    <view class="member-tips">{{userInfo.member_info.has_level?userInfo.member_info.current_level_name+'特权：'+userInfo.member_info.goods_discount+'折优惠':'您已成为店铺会员'}}</view>
+                    <navigator url="/pages/member/member_info" hover-class="none">
+                        <template is="member_level_progress" data="{{member:userInfo.member_info}}" wx:if="{{userInfo.member_info.has_level}}" />
+                    </navigator>
+                    <image class="level_pic" src="{{userInfo.member_info.current_level_pic}}" @tap="navigateTo('/pages/member/member_info')" />
+                </block>
+            </block>
+        </view>
+        <view class="section" wx:if="{{userInfo.is_agency == 1}}">
+            <view class="section-title section-item flex" @tap="navigateTo('/pages/income/list')">
+                <view class="item-text">
+                    推广订单收益
+                    <view class="tips">
+                        买家确认收货后即可提现订单佣金
+                    </view>
+                </view>
+                <view class="arrow-icon flex">详情</view>
+            </view>
+            <view class="tabs income-tabs">
+                <view class="tab-item flex">
+                    <view class="tab-text">
+                        ¥{{userInfo.today_earning}}
+                    </view>
+                    今日预估收益
+                </view>
+                <view class="tab-item flex">
+                    <view class="tab-text">
+                        ¥{{userInfo.await_settlement}}
+                    </view>
+                    预估待结收益
+                </view>
+                <view class="tab-item flex" @tap="navigateTo('/pages/income/withdraw')">
+                    <view class="tab-text">
+                        ¥{{userInfo.balance}}
+                    </view>
+                    <text class="triangle flex">可提现</text>
+                </view>
+            </view>
+            <view class="income-tips">推广订单通知将发送至：{{phone}}</view>
+        </view>
+        <view class="section" wx:if="{{userInfo.is_agency == 1}}">
+            <view class="section-title section-item flex" wx:if="{{userInfo.name}}" @tap="navigateTo('account?from_uid={{userInfo.parent_uid}}')">
+                <view class="item-text flex">我邀请的合伙人</view>
+                <view class="arrow-icon flex" style="color:#FF552A;">去邀请</view>
+            </view>
+            <button open-type="getUserInfo" bindgetuserinfo="userLogin('share')" class="section-title section-item flex" wx:else plain>
+                                                                                    <view class="item-text flex">我邀请的合伙人</view>
+                                                                                    <view class="arrow-icon flex" style="color:#FF552A;">去邀请</view>
+                                                                                </button>
+            <view class="tabs flex">
+                <view class="tab-item flex" @tap="navigateTo('/pages/agent/list')">
+                    <view class="tab-text">
+                        {{userInfo.today_invite}}
+                    </view>
+                    今日邀请
+                </view>
+                <view class="tab-item flex" @tap="navigateTo('/pages/agent/list')">
+                    <view class="tab-text">
+                        {{userInfo.total_invite}}
+                    </view>
+                    总邀请数
+                </view>
+            </view>
+        </view>
+        <view class="section">
+            <view class="section-title section-item flex" @tap="navigateTo('/pages/order/list')">
+                <view class="item-text flex">我购买的</view>
+                <view class="arrow-icon flex">全部订单</view>
+            </view>
+            <view class="tabs flex">
+                <view class="tab-item flex" @tap="navigateTo('/pages/order/list?type=pay_order')">
+                    <view class="num" wx:if="{{userInfo.await_pay}}">{{userInfo.await_pay}}</view>
+                    <image src="../../images/my/order-pay.png" class="icon" /> 待付款
+                </view>
+                <view class="tab-item flex" @tap="navigateTo('/pages/order/list?type=pre_produce')">
+                    <view class="num" wx:if="{{userInfo.pre_produce}}">{{userInfo.pre_produce}}</view>
+                    <image src="../../images/my/order-paid.png" class="icon" /> 已付款
+                </view>
+                <view class="tab-item flex" @tap="navigateTo('/pages/order/list?type=receive')">
+                    <view class="num" wx:if="{{userInfo.delivered}}">{{userInfo.delivered}}</view>
+                    <image src="../../images/my/order-delivery.png" class="icon" /> 待确认
+                </view>
+                <view class="tab-item flex" @tap="navigateTo('/pages/order/list?type=completed')">
+                    <view class="num" wx:if="{{userInfo.completed}}">{{userInfo.completed}}</view>
+                    <image src="../../images/my/order-complete.png" class="icon" /> 已完成
+                </view>
+                <view class="tab-item flex" @tap="navigateTo('/pages/order/list?type=refunding')">
+                    <view class="num" wx:if="{{userInfo.refunding}}">{{userInfo.refunding}}</view>
+                    <image src="../../images/my/icon_refund.png" class="icon" /> 退款/售后
+                </view>
+            </view>
+        </view>
+        <!--<view class="section">
+            <view class="section-item flex" @tap="navigateTo('/pages/branch/browse')">
+                <view class="item-text flex">
+                    <image src="../../images/my/icon_browse.png" class="icon" />看过的店</view>
+                <view class="arrow-icon flex"></view>
+            </view>
+        </view>-->
+        <view class="section">
+            <view class="section-item flex" @tap="navigateTo('/pages/coupon/list')">
+                <view class="item-text flex">
+                    <image src="../../images/my/icon_coupon.png" class="icon" />领券中心</view>
+                <view class="arrow-icon flex"></view>
+            </view>
+            <view class="section-item flex" @tap="navigateTo('/pages/address/list?from=my')">
+                <view class="item-text flex">
+                    <image src="../../images/my/icon_address.png" class="icon" />我的收货地址</view>
+                <view class="arrow-icon flex"></view>
+            </view>
+            <!--<view class="section-item flex" wx:if="{{userInfo.display_enterprise_card}}" @tap="navigateTo('card')">
+                <view class="item-text flex">
+                    <image src="../../images/my/icon_card.png" class="icon" />企业名片</view>
+                <view class="arrow-icon flex"></view>
+            </view>-->
+            <button class="section-item flex" session-from="{{shop_id}}" open-type="contact" plain="true" wx:if="{{userInfo.name}}">
+                <view class="item-text flex">
+                    <image src="../../images/my/icon_contact.png" class="icon" />联系我们</view>
+                <view class="arrow-icon flex"></view>
+            </button>
+            <button class="section-item flex" wx:else open-type="getUserInfo" bindgetuserinfo="userLogin('login')">
+                <view class="item-text flex">
+                    <image src="../../images/my/icon_contact.png" class="icon" />联系我们</view>
+                <view class="arrow-icon flex"></view>
+            </button>
+            <!--<view class="section-item flex" @tap="navigateTo('help_center')">
+                <view class="item-text flex">
+                    <image src="../../images/my/icon_question.png" class="icon" />常见问题</view>
+                <view class="arrow-icon flex"></view>
+            </view>-->
+        </view>
+        <view class="copyright" @tap="navigateTo('aboutus')">
+            <image src="../../images/logo.png" />
+            <view class="item-text">一米提供技术支持</view>
+            <view class="item-text">www.yimizhibo.tv</view>
+        </view>
+
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import api from '../../common/api';
+    import store from '../../common/store';
+    export default class My extends wepy.page {
+        config = {
+            'navigationBarTitleText': '我的'
+        };
+        data = {
+            userInfo: '',
+            shop_id: '',
+            phone: ''
+        };
+        methods = {
+            navigateTo(url) {
+                api.navigateTo(url);
+            },
+            userLogin(type, e) {
+                api.userLogin(type, e).then(json => {
+                    let data = json.data.data;
+                    this.userInfo = data;
+                    this.phone = data.mobile_phone.substring(0, 3) + "****" + data.mobile_phone.substring(7);
+                    this.$apply();
+                    if (type == 'share') {
+                        wx.navigateTo({
+                            url: `/pages/main/account?from_uid=${this.userInfo.parent_uid}`
+                        });
+                    }
+                });
+            }
+        }
+        onShow() {
+            api.getBackgroundColor().then(json => {
+                api.setBackgroundColor(json.frontColor, json.backgroundColor);
+            });
+            api.checkLogin().then(json => {
+                this.userInfo = json;
+                this.phone = json.mobile_phone.substring(0, 3) + "****" + json.mobile_phone.substring(7);
+                this.$apply();
+            });
+            api.lastPage = '';
+            this.$apply();
+        }
+        onLoad(options) {
+            api.from_uid = options.from_uid || api.from_uid;
+            api.shop_id = options.shop_id || parseInt(api.shop_id);
+            this.shop_id = api.shop_id;
+            this.$apply();
+        }
+    }
+</script>
+<style lang="less">
+
+    .my-page {
+        background: #f3f3f3;
+        min-height: 100vh;
+        position: relative;
+        padding-bottom: 180rpx;
+        .section {
+            background: #fff;
+            margin-top: 18rpx;
+            .section-item {
+                background: #fff;
+                min-height: 92rpx;
+                padding: 0 30rpx;
+                border: none;
+                border-radius: 0;
+                border-bottom: 1px solid #e6e6e6;
+                justify-content: space-between;
+                &.section-title {
+                    border-bottom: none;
+                }
+                &:after {
+                    border-radius: 0;
+                    border: none;
+                }
+                &:last-child {
+                    border-bottom: none;
+                }
+                .item-text {
+                    font-size: 30rpx;
+                    color: #3d3d3d;
+                    .tips {
+                        font-size: 22rpx;
+                        color: #999;
+                    }
+                }
+                .nick-name {
+                    color: #999;
+                    font-size: 28rpx;
+                }
+                .icon {
+                    width: 40rpx;
+                    height: 40rpx;
+                    margin-right: 12rpx;
+                }
+            }
+        }
+        .user-info {
+            background: #fff;
+            flex-direction: column;
+            padding: 40rpx 0;
+            position: relative;
+            .user-logo {
+                width: 120rpx;
+                height: 120rpx;
+                border-radius: 60rpx;
+            }
+            .user-name {
+                font-size: 32rpx;
+                color: #333;
+                line-height: 1;
+                margin-top: 12rpx;
+                position: relative;
+                .member-state {
+                    width: 72rpx;
+                    height: 28rpx;
+                    border-radius: 4rpx;
+                    font-size: 20rpx;
+                    color: #666;
+                    background: #f2f2f2;
+                    line-height: 28rpx;
+                    text-align: center;
+                    position: absolute;
+                    right: -90rpx;
+                    top: 2rpx;
+                }
+            }
+            .login-btn {
+                padding: 0;
+                border: none;
+                margin-top: 12rpx;
+            }
+            .member-tips {
+                font-size: 24rpx;
+                color: #C9973F;
+                line-height: 1;
+                font-weight: bold;
+                margin-top: 20rpx;
+                &.not-member {
+                    color: #38393B;
+                }
+            }
+            .bind-btn {
+                width: 180rpx;
+                height: 60rpx;
+                margin-top: 40rpx;
+                border: 1px solid #FF552A;
+                border-radius: 8rpx;
+                font-size: 28rpx;
+                color: #FF552A;
+                line-height: 58rpx;
+                text-align: center;
+            }
+            .level_pic {
+                width: 100rpx;
+                height: 100rpx;
+                position: absolute;
+                top: 50rpx;
+                left: 20rpx;
+            }
+        }
+        .income-tips {
+            background: #e6e6e6;
+            font-size: 24rpx;
+            color: #666;
+            line-height: 44rpx;
+            text-align: center;
+        }
+        .copyright {
+            color: #999;
+            font-size: 20rpx;
+            text-align: center;
+            position: absolute;
+            bottom: 10rpx;
+            width: 100%;
+            image {
+                width: 64rpx;
+                height: 64rpx;
+                margin-bottom: 12rpx;
+            }
+        }
+        .tabs {
+            height: 172rpx;
+            &.income-tabs {
+                .tab-text {
+                    color: #FF552A;
+                }
+            }
+            .tab-item {
+                padding: 24rpx 0;
+                flex-direction: column;
+                justify-content: center;
+                line-height: 36rpx;
+                position: relative;
+                .tab-text {
+                    font-weight: 600;
+                    margin-bottom: 12rpx;
+                }
+                .triangle {
+                    &:after {
+                        content: '';
+                        height: 0;
+                        width: 0;
+                        border-top: 10rpx solid #000;
+                        border-right: 10rpx solid transparent;
+                        border-left: 10rpx solid transparent;
+                        transform: rotate(-90deg);
+                    }
+                }
+                .num {
+                    position: absolute;
+                    height: 30rpx;
+                    line-height: 30rpx;
+                    font-size: 24rpx;
+                    color: #fff;
+                    background: #FF552A;
+                    min-width: 12rpx;
+                    border-radius: 15rpx;
+                    top: 10rpx;
+                    right: 40rpx;
+                    padding: 0 8rpx;
+                }
+                .icon {
+                    width: 48rpx;
+                    height: 48rpx;
+                    margin-bottom: 10rpx;
+                }
+            }
+        }
+    }
+</style>

@@ -1,0 +1,264 @@
+<template>
+    <view class="account-page page">
+        <view class="account-panel flex">
+            <image src="{{accountInfo.logo}}" class="account-logo" />
+            <view class="account-name">{{accountInfo.name}}</view>
+            <view class="tips">
+                加盟后，您可以推广平台商品，并获得相应佣金
+            </view>
+        </view>
+        <view class='form-panel'>
+            <view class="input-txt flex">
+                <view class="label-text">姓名
+                    <text class="red">*</text>
+                </view>
+                <input placeholder="请填写您的真实姓名" @blur="nameInput" @focus="inputFocus" value="{{name}}" />
+            </view>
+            <view class="input-txt flex">
+                <view class="label-text">手机
+                    <text class="red">*</text>
+                </view>
+                <input placeholder="请填写您的手机号码" @blur="phoneInput" @focus="inputFocus" value="{{mobile_phone}}" type="number" />
+            </view>
+            <view class="input-txt flex">
+                <view class="label-text">微信</view>
+                <input placeholder="请输入您的微信号" @blur="wechatInput" @focus="inputFocus" value="{{weixin}}" />
+            </view>
+            <view class="input-txt flex">
+                <view class="label-text">咨询
+                    <view class="input-tips">{{consult_tips.length||0}}/100</view>
+                </view>
+                <textarea placeholder="请输入您希望了解的信息" maxlength="100" value="{{consult}}" @blur="questionInputBlur" @input="questionInput" cursor-spacing="30" auto-height="true" />
+            </view>
+            <view class="error-tips">{{errorTips}}</view>
+            <a class="submit-btn" @tap="submitForm">提交</a>
+        </view>
+    </view>
+</template>
+<script>
+import wepy from 'wepy';
+import api from '../../common/api';
+export default class account extends wepy.page {
+    config = {
+        'navigationBarTitleText': '申请合伙人'
+    };
+
+    data = {
+        errorTips: '',
+        name: '',
+        mobile_phone: '',
+        weixin: '',
+        consult: '',
+        loading: true,
+        from_uid: '',
+        consult_tips: '',
+        accountInfo: {}
+    };
+
+    renderTips(msg) {
+        this.errorTips = msg;
+        this.$apply();
+    }
+
+    resetData() {
+        this.errorTips = '';
+        this.mobile_phone = '';
+        this.name = '';
+        this.weixin = '';
+        this.consult = '';
+        this.from_uid = '';
+        this.consult_tips = '';
+        this.loading = true;
+    }
+
+    methods = {
+        phoneInput(e) {
+            this.mobile_phone = e.detail.value;
+            this.$apply();
+        },
+        wechatInput(e) {
+            this.weixin = e.detail.value;
+            this.$apply();
+        },
+        questionInput(e) {
+            this.consult_tips = e.detail.value;
+            this.$apply();
+        },
+        questionInputBlur(e) {
+            this.consult = e.detail.value;
+            this.$apply();
+        },
+        nameInput(e) {
+            this.name = e.detail.value;
+            this.$apply();
+        },
+        inputFocus() {
+            this.renderTips("");
+        },
+        // 提交
+        submitForm() {
+            let tips = this.validateForm();
+            if (tips) {
+                return this.renderTips(tips);
+            };
+            api.request({
+                url: api.agent_apply,
+                data: {
+                    act: 1,
+                    from_uid: api.userInfo.is_agency ? api.userInfo.uid : api.from_uid ? api.from_uid : api.userInfo.uid,
+                    mobile_phone: this.mobile_phone,
+                    consult: this.consult,
+                    name: this.name,
+                    weixin: this.weixin
+                },
+                method: 'POST'
+            }).then(json => {
+                api.showModal('申请成功,等待审核。',()=>{
+                    wx.navigateBack();
+                });
+            }).catch(msg => {
+                wx.showToast({
+                    image: '../../images/fail.png',
+                    title: msg
+                });
+            });
+        }
+    }
+
+    onShow() {
+        api.getBackgroundColor().then(json => {
+            let { frontColor, backgroundColor, title, logo } = json;
+            api.setBackgroundColor(frontColor, backgroundColor);
+            this.accountInfo.logo = logo;
+            this.accountInfo.name = title;
+            this.$apply();
+        });
+    }
+
+    onLoad(options) {
+        this.resetData();
+        api.checkLogin().then(json => {
+            api.from_uid = options.from_uid || api.from_uid;
+            api.shop_id = options.shop_id || parseInt(api.shop_id);
+            api.userInfo = json;
+            this.$apply();
+        });
+    }
+
+    // 表单验证
+    validateForm() {
+        let tips = '';
+        if (!this.name) {
+            tips = '姓名不能为空';
+            return tips;
+        }
+        if (!this.mobile_phone) {
+            tips = '手机号码不能为空';
+            return tips;
+        }
+        if (!/^1\d{10}$/.test(this.mobile_phone)) {
+            tips = '手机号码格式不正确';
+            return tips;
+        }
+        return tips;
+    }
+}
+
+</script>
+<style lang="less">
+.account-page {
+    .account-panel {
+        height: 272rpx;
+        text-align: center;
+        background: #fff;
+        position: relative;
+        justify-content: center;
+        flex-direction: column;
+        .account-logo {
+            width: 112rpx;
+            height: 112rpx;
+            border-radius: 50%;
+            margin: 16rpx 0;
+            background: #fff;
+            object-fit: contain;
+        }
+        .account-name {
+            color: #3d3d3d;
+            margin-bottom: 22rpx;
+        }
+        .tips {
+            width: 80%;
+            color: #999;
+            line-height: 32rpx;
+            font-size: 24rpx;
+            margin: 0 auto;
+        }
+    }
+    .form-panel {
+        margin-top: 22rpx;
+        .input-txt {
+            min-height: 100rpx;
+            border-bottom: 1px solid #f1f1f1;
+            background: #fff;
+            padding-left: 30rpx;
+            input,
+            textarea {
+                flex: 1;
+                border: none;
+                outline: none;
+                height: 40rpx;
+                line-height: 40rpx;
+            }
+            .label-text {
+                width: 100rpx;
+                .red {
+                    color: #FF552A;
+                }
+            }
+            .input-tips {
+                font-size: 20rpx;
+                color: #999;
+            }
+            &.consult {
+                align-items: start;
+                padding: 20rpx 0 20rpx 30rpx;
+            }
+        }
+        .error-tips {
+            margin-top: 12rpx;
+            color: #f00;
+            text-align: center;
+            height: 40rpx;
+            font-size: 24rpx;
+        }
+        .code-btn {
+            height: 80rpx;
+            line-height: 80rpx;
+            text-align: center;
+            color: #FF552A;
+            width: 200rpx;
+            font-size: 24rpx;
+            &.disable {
+                color: #666;
+            }
+        }
+        .submit-btn {
+            display: block;
+            height: 80rpx;
+            line-height: 80rpx;
+            color: #fff;
+            background: #FF552A;
+            font-size: 32rpx;
+            text-align: center;
+            margin: 20rpx 42rpx 0;
+            border-radius: 40rpx;
+            border: none;
+        }
+        .tips {
+            margin: 60rpx 42rpx 0;
+            color: #666;
+        }
+    }
+}
+
+</style>

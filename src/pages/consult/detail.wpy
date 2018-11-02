@@ -1,0 +1,458 @@
+<template>
+    <view class="goods-detail page" wx:if="{{!loading}}">
+        <import src="../../common/wxParse/wxParse.wxml" />
+        <import src="../../templates/goods_detail.wxml" />
+        <template is="goods_detail" data="{{goods_info}}" />
+        <view class="pull-up">
+            <image src="../../images/mall/detail.png" />详情
+        </view>
+        <view class="detail-content">
+            <template is="wxParse" data="{{wxParseData:detailContent.nodes}}" />
+            <view class="detail-images">
+                <block wx:for="{{goods_info.detail_images}}" wx:key="index" wx:for-index="index" wx:for-item="item">
+                    <image src="{{item}}" class="goods-img" mode="widthFix" />
+                </block>
+            </view>
+        </view>
+        <!--<view wx:if="{{userInfo.is_agency == 0}}">
+            <button class="join-btn flex" style="bottom: 282rpx" open-type="getUserInfo" bindgetuserinfo="userLogin('share')" plain="true" wx:if="{{!userInfo.name}}">
+                <image src="../../images/account/join.png" />
+            </button>
+            <view class="join-btn flex" style="bottom: 282rpx" wx:else @tap="navigateTo('/pages/main/join')">
+                <image src="../../images/account/join.png" />
+            </view>
+        </view>-->
+
+        <view class="page-footer">
+
+            <view class="footer-item flex" @tap="gotoIndex">
+                <image src="../../images/shop-logo.png" /> 商城
+            </view>
+            <!--<button class="flex flex-item btn confirm-btn" session-from="{{shop_id}}" open-type="contact" plain="true" wx:if="{{userInfo.name}}">
+                立即咨询
+            </button>
+            <button class="flex flex-item btn confirm-btn" wx:else open-type="getUserInfo" bindgetuserinfo="userLogin('login')" plain="true">
+                立即咨询
+            </button>-->
+            <button class="flex flex-item btn confirm-btn"  plain="true" @tap="consultBtn" >
+                立即咨询
+            </button>
+            <action-sheet hidden="{{actionSheetHidden}}"  bindchange="actionSheetChange">
+                <action-sheet-item >
+                    <button style="color:#333;font-size:18px;height:24px;" class="footer-item flex wechat" session-from="{{shop_id}}" open-type="contact" plain="true" wx:if="{{userInfo.name}}" show-message-card send-message-title="{{goods_info.wname}}" send-message-path="/pages/{{goods_info.type}}/detail?goods_id={{goods_info.bid}}"
+                            send-message-img="{{goods_info.images[0]}}">
+                        微信咨询
+                    </button>
+                    <button style="color:#333;font-size:18px;height:24px;" class="footer-item flex wechat" wx:else open-type="getUserInfo" bindgetuserinfo="userLogin('login')" plain="true">
+                        微信咨询
+                    </button>
+                </action-sheet-item>
+                <action-sheet-item @tap="makePhoneCall">电话咨询</action-sheet-item>
+                <action-sheet-item @tap="goLeavingMessage">留言咨询</action-sheet-item>
+                <action-sheet-cancel class="cancel" @tap="SheetHidden">取消</action-sheet-cancel>
+            </action-sheet>
+
+        </view>
+        <image class="go-to-top-btn" style="bottom: 152rpx" src="/images/go_to_top.png" wx:if="{{goToTopBtnShow}}" @tap.stop="pageScrollTo(0)" />
+        <Poster />
+    </view>
+</template>
+<script>
+    import wepy from 'wepy';
+    import store from '../../common/store';
+    import api from '../../common/api';
+    import WxParse from '../../common/wxParse/wxParse';
+    import cartService from '../../common/cartService';
+    import loadCode from '../../common/loadCode';
+    import Poster from '../../components/yunmi-poster';
+    export default class Detail extends wepy.page {
+        components = {
+            Poster
+        };
+        events = {
+            getQrcodeImage(id, type) {
+                api.getQrcodeImage(id, type).then(res => {
+                    this.$invoke('Poster', 'creatPoster', res.url);
+                }).catch(msg =>{
+                    this.$invoke('Poster', 'creatPoster', '');
+                    wx.hideLoading();
+                    api.showModal(msg);
+                });
+            }
+        };
+        data = {
+            logo: '',
+            title: '',
+            goods_info: {},
+            loading: true,
+            userInfo: {},
+            phone: '',
+            disable: false,
+            shop_id: '',
+            type: '', //1为购物车 2为立即购买
+            windowHeight: 0,
+            goToTopBtnShow: false,
+            actionSheetHidden: true,
+        };
+        resetData() {
+            this.loading = true;
+            this.userInfo = {};
+            this.phone = '';
+            this.goods_info = {};
+            this.type = '';
+            this.disable = false;
+            this.actionSheetHidden=true;
+            this.$apply();
+        }
+        renderDetailContent() {
+            WxParse.wxParse('detailContent', 'html', this.goods_info.content, this, 0);
+        }
+        methods = {
+            actionSheetChange(){
+                this.actionSheetHidden=true;
+                this.$apply();
+            },
+            makePhoneCall(){
+                this.actionSheetHidden=true;
+                this.$apply();
+                wx.makePhoneCall({
+                    phoneNumber: this.phone,
+                });
+            },
+            consultBtn(){
+                this.actionSheetHidden=false;
+                this.$apply();
+            },
+            goLeavingMessage(){
+                this.actionSheetHidden=true;
+                this.$apply();
+                api.navigateTo('/pages/mall/leaving_message?id='+this.goods_info.bid);
+            },
+            SheetHidden(){
+                this.actionSheetHidden=true;
+                this.$apply();
+            },
+            pageScrollTo(px) {
+                api.pageScrollTo(px)
+            },
+            showBottomMenu() {
+                let {
+                    images,
+                    group_people,
+                    wname,
+                    type,
+                    bid
+                } = this.goods_info;
+                this.$invoke('Poster', 'showBottomMenu', {
+                    bid,
+                    image: images[0],
+                    group_people: group_people || 0,
+                    wname,
+                    type,
+                    title: this.title,
+                    logo: this.logo
+                });
+            },
+            makePhoneCall() {
+                wx.makePhoneCall({
+                    phoneNumber: this.phone
+                });
+            },
+            navigateTo(url) {
+                api.navigateTo(url);
+            },
+            gotoIndex() {
+                wx.switchTab({
+                    url: `/pages/mall/index`
+                });
+            },
+            openConfirm(type) {
+                api.navigateTo('confirm');
+            },
+            userLogin(type, e) {
+                api.userLogin(type, e).then(json => {
+                    let data = json.data.data;
+                    this.userInfo = data;
+                    this.$apply();
+                    if (type == 'share') {
+                        wx.navigateTo({
+                            url: `/pages/main/join`
+                        });
+                    }
+                });
+            }
+        };
+        getBackgroundColor(){
+            api.getBackgroundColor().then(json => {
+                let {
+                    frontColor,
+                    backgroundColor,
+                    logo,
+                    title,
+                    mobile_phone
+                } = json;
+                api.setBackgroundColor(frontColor, backgroundColor);
+                this.phone = mobile_phone;
+                this.title = title;
+                this.logo = logo;
+                this.$apply();
+            });
+        }
+        onPageScroll(e) {
+            if (this.windowHeight) {
+                this.goToTopBtnShow = e.scrollTop >= this.windowHeight;
+                this.$apply();
+            }
+        }
+        onShow() {
+            this.getBackgroundColor();
+        }
+        onLoad(options) {
+            api.loading.show();
+            this.resetData();
+            loadCode.getCode();
+            let finalId = options.goods_id,
+                shop_id = '',
+                scene = decodeURIComponent(options.scene);
+            if (scene != 'undefined') {
+                let sceneObj = {};
+                scene.split(',').map(item => {
+                    let value = item.split(':');
+                    sceneObj[value[0]] = value[1];
+                });
+                finalId = sceneObj.bid;
+                shop_id = sceneObj.shop_id;
+            }
+            api.checkLogin().then(json => {
+                api.from_uid = options.from_uid || api.from_uid;
+                api.shop_id = shop_id || options.shop_id || parseInt(api.shop_id);
+                this.shop_id = api.shop_id;
+                this.getBackgroundColor();
+                this.userInfo = json;
+                this.windowHeight = wx.getSystemInfoSync().windowHeight;
+                this.$apply();
+                let uid = wx.getStorageSync("uid"),
+                    sdkInfo = wx.getStorageSync("sdk_zbinfo");
+                if (!sdkInfo) {
+                    api.request({
+                        url: api.get_sdk_zbinfo,
+                        data: {
+                            uid: uid
+                        }
+                    }).then(json => {
+                        wx.setStorageSync("sdk_zbinfo", json);
+                        this.getGoodsInfo(finalId);
+                    });
+                } else {
+                    this.getGoodsInfo(finalId);
+                }
+            });
+        }
+        // 获取商品信息
+        getGoodsInfo(goods_id) {
+            let id = wx.getStorageSync('uid'),
+                sdkInfo = wx.getStorageSync('sdk_zbinfo');
+            let data = {
+                id: id,
+                token: sdkInfo.token,
+                sign: sdkInfo.sign,
+                ts: sdkInfo.ts
+            };
+            api.request({
+                url: `${api.goodsDetail}/${goods_id}`,
+                data: data
+            }).then(json => {
+                this.goods_info = json;
+                store.set("currentGoodsData", json);
+                this.goods_info.goods_id = goods_id;
+                this.loading = false;
+                this.$apply();
+                this.renderDetailContent();
+                api.loading.hide();
+                wx.setNavigationBarTitle({
+                    title: json.wname
+                });
+            }).catch(json => {
+                api.loading.hide();
+                api.showModal('商品已失效', () => {
+                    wx.navigateBack();
+                });
+                this.loading = false;
+                this.$apply();
+            });
+        }
+        onShareAppMessage() {
+            let uid = this.userInfo.is_agency ?
+                this.userInfo.uid :
+                api.from_uid ? api.from_uid : this.userInfo.uid;
+            let {
+                wname,
+                bid,
+                images,
+                price,
+                type
+            } = this.goods_info;
+            console.log(`/pages/${type}/detail?goods_id=${bid}&from_uid=${uid}&shop_id=${api.shop_id}`);
+            return {
+                title: `${wname}`,
+                path: `/pages/${type}/detail?goods_id=${bid}&from_uid=${uid}&shop_id=${api.shop_id}`,
+                imageUrl: images[0],
+                success: res => {
+                    wx.showToast({
+                        title: '转发成功！'
+                    });
+                },
+                fail: res => {
+                    let msg = '转发失败！';
+                    if (/cancel/ig.test(res.errorMsg) > -1) {
+                        msg = '转发取消！'
+                    }
+                    wx.showToast({
+                        image: '../../images/fail.png',
+                        title: msg
+                    });
+                }
+            };
+        }
+    }
+</script>
+<style lang="less">
+    @import "../../common/wxParse/wxParse.wxss";
+    @import "../../templates/goods_detail.less";
+    .goods-detail {
+        background: #f2f3f4;
+        padding-bottom: 96rpx;
+        .detail-content {
+            background: #fff;
+            img {
+                max-width: 100%;
+            }
+        }
+        .goods-spec {
+            margin-top: 18rpx;
+            height: 100rpx;
+            background: #fff;
+            padding: 0 24rpx;
+            font-size: 28rpx;
+            color: #3d3d3d;
+            line-height: 100rpx;
+            .checked-txt {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                line-height: 100rpx;
+                width: 600rpx;
+            }
+            .arrow {
+                width: 90rpx;
+                height: 90rpx;
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                &:before {
+                    display: block;
+                    content: '';
+                    width: 20rpx;
+                    height: 20rpx;
+                    border-top: 2rpx solid #999;
+                    border-right: 2rpx solid #999;
+                    transform: rotate(45deg);
+                }
+            }
+        }
+        .pull-up {
+            font-size: 24rpx;
+            text-align: center;
+            line-height: 58rpx;
+            color: #999;
+            background: #f2f2f2;
+            image {
+                width: 32rpx;
+                height: 26rpx;
+                vertical-align: middle;
+                margin: 0 12rpx;
+            }
+            &:before,
+            &:after {
+                content: '';
+                width: 100rpx;
+                display: inline-block;
+                height: 1rpx;
+                background: #999;
+                vertical-align: middle;
+            }
+        }
+        .shop-link {
+            display: none;
+            width: 160rpx;
+            height: 80rpx;
+            text-align: center;
+            .shop-link-icon {
+                display: block;
+                margin: 5rpx auto 0;
+                width: 40rpx;
+                height: 40rpx;
+            }
+            .shop-link-text {
+                display: block;
+                margin: 0 auto;
+                font-size: 20rpx;
+            }
+        }
+        .detail-content {
+            image {
+                width: 100%;
+                display: block;
+            }
+        }
+        .copied-icon {
+            width: 32rpx;
+            height: 32rpx;
+            vertical-align: middle;
+            margin-right: 12rpx;
+        }
+        .footer-item {
+            flex-direction: column;
+            color: #3d3d3d;
+            font-size: 22rpx;
+            justify-content: center;
+            padding: 0 24rpx;
+            position: relative;
+            &.wechat {
+                color: #45A62A;
+                border: none;
+                line-height: 30rpx;
+            }
+            image {
+                width: 52rpx;
+                height: 52rpx;
+            }
+            .cart-num {
+                position: absolute;
+                color: #FF552A;
+                min-width: 24rpx;
+                height: 24rpx;
+                line-height: 12px;
+                border: 1px solid #FF552A;
+                text-align: center;
+                border-radius: 12rpx;
+                right: 6rpx;
+                top: 6rpx;
+                background: #fff;
+                padding: 0 4rpx;
+            }
+        }
+        .not-found {
+            text-align: center;
+            image {
+                margin: 282rpx auto 40rpx;
+                width: 200rpx;
+                height: 200rpx;
+            }
+            .tips {
+                font-size: 28rpx;
+                color: #999;
+            }
+        }
+    }
+</style>
